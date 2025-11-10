@@ -109,6 +109,11 @@ BRUH FILL THIS OUT but also it shouldn't be too interactive
 - [ ] Simulate the black hole
   - [ ] Raytracing?
   - [ ] Path Tracing? (I have to do so much research...)
+  - [ ] Render accretion disk
+  - [ ] Stars in the background
+  - [ ] Simulation interactivity, time step, pause, etc
+  - [ ] Post processing (bloom etc)
+  - [ ] Put a grid under it to show a point of non-moving
 - [ ] Make it interactible, move the camera around using mouse position
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
