@@ -7,292 +7,398 @@ uniform vec3 black_hole_color : source_color = vec3(0.0, 0.0, 0.0);
 uniform vec3 background_color : source_color = vec3(0.05, 0.05, 0.08);
 
 uniform bool use_geodesics = true;
-uniform int max_steps = 500;
-uniform float dlambda = 1e-5;            // integration step size in affine parameter
-uniform float escape_radius = 1e6;
+uniform int max_steps = 2000;
+uniform float step_size = 0.05;  // Conservative default
+uniform float escape_radius = 500.0;
 
 uniform vec3 camera_position = vec3(0.0, 0.0, -100.0);
-uniform vec3 camera_target = vec3(0.0, 0.0, 1.0);
-uniform float camera_fov = 60.0;        // degrees
+uniform vec3 camera_target = vec3(0.0, 0.0, 0.0);
+uniform float camera_fov = 60.0;
 
 // ---------- Accretion Disc Params --------
-uniform float disc_inner_radius = 12.0; // radius of inner edge
-uniform float disc_outer_radius = 25.0; // outer edge
-uniform vec3 disc_color : source_color = vec3(1.0, 0.5, 0.0); // orange-ish
-uniform float disc_thickness = 0.5; // half-thickness in z
+uniform float disc_inner_radius = 15.0;
+uniform float disc_outer_radius = 30.0;
+uniform vec3 disc_color : source_color = vec3(1.0, 0.5, 0.0);
+uniform float disc_thickness = 1.0;
 
-// ---------- Constants & helpers ----------
+// ---------- Debug ----------
+uniform int debug_mode = 0; // 0=off, 1=initial r, 2=min r, 3=steps, 4=show errors
+
+// ---------- Constants ----------
 uniform vec2 viewport_size = vec2(144.0, 81.0);
-const float EPS = 1e-6;
+const float EPS = 1e-7;
+const float HORIZON_MARGIN = 1.05; // Stay away from coordinate singularity
 
-// Numerically-stable sphere intersection (for fallback)
-bool sphere_intersect(vec3 origin, vec3 direction, vec3 center, float radius) {
-	vec3 oc = origin - center;
-	float b = dot(oc, direction);
-	float c = dot(oc, oc) - radius * radius;
-	float disc = b * b - c;
-	if (disc <= 0.0) return false;
-	float t = -b - sqrt(disc);
-	if (t > 0.0) return true;
-	t = -b + sqrt(disc);
-	return t > 0.0;
+// Safe math operations
+float safe_acos(float x) {
+    return acos(clamp(x, -1.0, 1.0));
 }
 
-// clamp sin to avoid division by zero, preserve sign for cotangent
-float safe_cot(float theta) {
-	float s = sin(theta);
-	if (abs(s) < EPS) {
-		// approximate cotangent for very small sin
-		return cos(theta) / (EPS * (s >= 0.0 ? 1.0 : -1.0));
-	}
-	return cos(theta) / s;
+float safe_sqrt(float x) {
+    return sqrt(max(x, 0.0));
 }
 
-// ---------- Geodesic math (Schwarzschild) ----------
-// State variables: r, theta, phi, dr, dtheta, dphi
-// Conserved energy renamed to rayE to avoid conflicts
+float safe_div(float num, float denom, float fallback) {
+    float abs_denom = abs(denom);
+    if (abs_denom < EPS) return fallback;
+    return num / denom;
+}
 
-void init_ray_from_camera(vec3 cam_pos, vec3 ray_dir, float rs,
+// Check if value is valid (not NaN, not Inf)
+bool is_valid(float x) {
+    return (x == x) && (x < 1e10) && (x > -1e10);
+}
+
+bool all_valid(float r, float theta, float phi, float dr, float dtheta, float dphi) {
+    return is_valid(r) && is_valid(theta) && is_valid(phi) && 
+           is_valid(dr) && is_valid(dtheta) && is_valid(dphi);
+}
+
+// ---------- Geodesic Integration with Error Checking ----------
+
+bool init_ray_from_camera(vec3 cam_pos, vec3 ray_dir, float rs,
                           out float r, out float theta, out float phi,
                           out float dr, out float dtheta, out float dphi,
                           out float rayE) {
-	// cartesian -> spherical (camera position)
-	vec3 rel_pos = cam_pos - black_hole_position;
-	//vec3 rel_pos = black_hole_position - cam_pos;
-	r = length(rel_pos);
-	theta = acos(clamp(rel_pos.z / r, -1.0, 1.0));
-	phi = atan(rel_pos.y, rel_pos.x);
-
-
-	// Compute spherical-basis components of direction
-	float sin_t = sin(theta);
-	float cos_t = cos(theta);
-	float sin_p = sin(phi);
-	float cos_p = cos(phi);
-
-	// Convert ray_dir into BH-local basis
-	vec3 er = normalize(rel_pos);
-	vec3 e_theta = vec3(cos_t*cos_p, cos_t*sin_p, -sin_t);
-	vec3 e_phi = vec3(-sin_p, cos_p, 0.0);
-
-	dr = dot(ray_dir, er);
-	dtheta = dot(ray_dir, e_theta) / r;
-	dphi = dot(ray_dir, e_phi) / (r * sin_t + EPS);
-
-	// dtheta/dlambda = dot(direction, e_theta) / r
-	dtheta = (cos_t * cos_p * ray_dir.x + cos_t * sin_p * ray_dir.y - sin_t * ray_dir.z) / max(r, EPS);
-
-	// dphi/dlambda = dot(direction, e_phi) / (r * sinθ)
-	float denom = max(r * sin_t, EPS);
-	dphi = (-sin_p * ray_dir.x + cos_p * ray_dir.y) / denom;
-
-	// Conserved energy rayE: compute dt/dlambda first (from spatial part)
-	float f = 1.0 - rs / r;
-	float arg = max(0.0, (dr*dr) / max(f, EPS) + r*r*(dtheta*dtheta + (sin_t*sin_t) * dphi*dphi));
-	float dt_dlambda = sqrt(arg);
-	rayE = f * dt_dlambda;
+    
+    // Position relative to black hole
+    vec3 rel_pos = cam_pos - black_hole_position;
+    r = length(rel_pos);
+    
+    // Early validation
+    if (r < rs * HORIZON_MARGIN || !is_valid(r)) {
+        return false;
+    }
+    
+    // Normalize relative position for spherical conversion
+    vec3 rel_pos_norm = rel_pos / r;
+    
+    // Spherical coordinates: theta from +z axis, phi in xy-plane
+    theta = safe_acos(rel_pos_norm.z);
+    
+    // Clamp theta away from poles to avoid singularity
+    float theta_min = 0.01;
+    float theta_max = PI - 0.01;
+    theta = clamp(theta, theta_min, theta_max);
+    
+    phi = atan(rel_pos_norm.y, rel_pos_norm.x);
+    
+    // Precompute trig functions with clamped theta
+    float sin_theta = sin(theta);
+    float cos_theta = cos(theta);
+    float sin_phi = sin(phi);
+    float cos_phi = cos(phi);
+    
+    // sin_theta should now be safe, but double-check
+    sin_theta = max(abs(sin_theta), EPS) * sign(sin_theta);
+    
+    // Spherical basis vectors (normalized by construction)
+    vec3 e_r = vec3(sin_theta * cos_phi, sin_theta * sin_phi, cos_theta);
+    vec3 e_theta = vec3(cos_theta * cos_phi, cos_theta * sin_phi, -sin_theta);
+    vec3 e_phi = vec3(-sin_phi, cos_phi, 0.0);
+    
+    // Project ray direction onto spherical basis
+    dr = dot(ray_dir, e_r);
+    dtheta = dot(ray_dir, e_theta) / r;
+    dphi = dot(ray_dir, e_phi) / (r * sin_theta);
+    
+    // Validate initial derivatives
+    if (!all_valid(r, theta, phi, dr, dtheta, dphi)) {
+        return false;
+    }
+    
+    // Calculate conserved energy for null geodesic
+    // Metric factor f = (1 - rs/r)
+    float f = 1.0 - rs / r;
+    f = max(f, EPS);
+    
+    // Spatial term from metric: dr²/f + r²(dθ² + sin²θ dφ²)
+    float spatial_sq = (dr * dr) / f + 
+                       r * r * (dtheta * dtheta + sin_theta * sin_theta * dphi * dphi);
+    
+    // For null geodesic: (1-rs/r)(dt/dλ)² = spatial_term
+    float dt_dlambda = safe_sqrt(spatial_sq);
+    
+    // Conserved energy E = (1 - rs/r) * dt/dλ
+    rayE = f * dt_dlambda;
+    
+    // Validate energy is reasonable
+    if (!is_valid(rayE) || rayE < EPS) {
+        return false;
+    }
+    
+    return true;
 }
 
-void geodesic_derivatives(float r, float theta, float phi,
+bool geodesic_derivatives(float r, float theta, float phi,
                           float dr, float dtheta, float dphi,
                           float rayE, float rs,
                           out float vr, out float vtheta, out float vphi,
                           out float ar, out float atheta, out float aphi) {
-	// velocities (first derivatives)
-	vr = dr;
-	vtheta = dtheta;
-	vphi = dphi;
-
-	// Accelerations (second derivatives)
-	float f = 1.0 - rs / r;
-	float dt_dlambda = rayE / max(f, EPS);
-	float sin_t = sin(theta);
-	float cos_t = cos(theta);
-	float sin_t_sq = sin_t * sin_t;
-
-	// Use safe cotangent
-	float cot_t = (abs(sin_t) < EPS) ? (cos_t / (EPS * (sin_t >= 0.0 ? 1.0 : -1.0))) : cos_t / sin_t;
-
-	// d2r/dlambda2
-	float term1 = -(rs / (2.0 * r * r)) * f * dt_dlambda * dt_dlambda;
-	float term2 = (rs / (2.0 * r * r * max(f, EPS))) * dr * dr;
-	float term3 = r * (dtheta * dtheta + sin_t_sq * dphi * dphi);
-	ar = term1 + term2 + term3;
-
-	// d2theta/dlambda2
-	atheta = -(2.0 / r) * dr * dtheta + sin_t * cos_t * dphi * dphi;
-
-	// d2phi/dlambda2
-	aphi = -(2.0 / r) * dr * dphi - 2.0 * cot_t * dtheta * dphi;
+    
+    // Check if we're too close to horizon
+    if (r < rs * HORIZON_MARGIN) {
+        vr = dr; vtheta = dtheta; vphi = dphi;
+        ar = -1000.0; atheta = 0.0; aphi = 0.0; // Force infall
+        return true;
+    }
+    
+    // Clamp theta away from poles during integration
+    theta = clamp(theta, 0.0, PI);
+    
+    // Validate inputs
+    if (!all_valid(r, theta, phi, dr, dtheta, dphi)) {
+        vr = vtheta = vphi = ar = atheta = aphi = 0.0;
+        return false;
+    }
+    
+    // Velocities
+    vr = dr;
+    vtheta = dtheta;
+    vphi = dphi;
+    
+    // Metric factor and time derivative
+    float f = 1.0 - rs / r;
+    f = max(f, EPS); // Prevent division by zero
+    float dt_dlambda = rayE / f;
+    
+    // Trig functions
+    float sin_theta = sin(theta);
+    float cos_theta = cos(theta);
+    
+    // Ensure sin_theta is never too small
+    sin_theta = max(abs(sin_theta), EPS) * sign(sin_theta);
+    float sin_theta_sq = sin_theta * sin_theta;
+    
+    // Schwarzschild geodesic equations
+    // d²r/dλ² = -(rs/2r²)f(dt/dλ)² + (rs/2r²f)(dr/dλ)² + r[(dθ/dλ)² + sin²θ(dφ/dλ)²]
+    float term1 = -(rs / (2.0 * r * r)) * f * dt_dlambda * dt_dlambda;
+    float term2 = (rs / (2.0 * r * r * f)) * dr * dr;
+    float term3 = r * (dtheta * dtheta + sin_theta_sq * dphi * dphi);
+    ar = term1 + term2 + term3;
+    
+    // d²θ/dλ² = -(2/r)(dr/dλ)(dθ/dλ) + sinθ cosθ(dφ/dλ)²
+    atheta = -(2.0 / r) * dr * dtheta + sin_theta * cos_theta * dphi * dphi;
+    
+    // d²φ/dλ² = -(2/r)(dr/dλ)(dφ/dλ) - 2cotθ(dθ/dλ)(dφ/dλ)
+    float cot_theta = cos_theta / sin_theta;
+    aphi = -(2.0 / r) * dr * dphi - 2.0 * cot_theta * dtheta * dphi;
+    
+    // Validate outputs
+    return is_valid(ar) && is_valid(atheta) && is_valid(aphi);
 }
 
-// Single RK4 step: updates state variables by step (dlambda)
-void rk4_step_state(inout float r, inout float theta, inout float phi,
-                    inout float dr, inout float dtheta, inout float dphi,
-                    float rayE, float rs, float step) {
-	// Save original
-	float r0 = r; float th0 = theta; float ph0 = phi;
-	float dr0 = dr; float dth0 = dtheta; float dph0 = dphi;
-
-	// k1
-	float k1_vr, k1_vth, k1_vph, k1_ar, k1_ath, k1_aph;
-	geodesic_derivatives(r0, th0, ph0, dr0, dth0, dph0, rayE, rs,
-	                     k1_vr, k1_vth, k1_vph, k1_ar, k1_ath, k1_aph);
-
-	// k2 state
-	float r1 = r0 + 0.5 * step * k1_vr;
-	float th1 = th0 + 0.5 * step * k1_vth;
-	float ph1 = ph0 + 0.5 * step * k1_vph;
-	float dr1 = dr0 + 0.5 * step * k1_ar;
-	float dth1 = dth0 + 0.5 * step * k1_ath;
-	float dph1 = dph0 + 0.5 * step * k1_aph;
-
-	float k2_vr, k2_vth, k2_vph, k2_ar, k2_ath, k2_aph;
-	geodesic_derivatives(r1, th1, ph1, dr1, dth1, dph1, rayE, rs,
-	                     k2_vr, k2_vth, k2_vph, k2_ar, k2_ath, k2_aph);
-
-	// k3 state
-	float r2 = r0 + 0.5 * step * k2_vr;
-	float th2 = th0 + 0.5 * step * k2_vth;
-	float ph2 = ph0 + 0.5 * step * k2_vph;
-	float dr2 = dr0 + 0.5 * step * k2_ar;
-	float dth2 = dth0 + 0.5 * step * k2_ath;
-	float dph2 = dph0 + 0.5 * step * k2_aph;
-
-	float k3_vr, k3_vth, k3_vph, k3_ar, k3_ath, k3_aph;
-	geodesic_derivatives(r2, th2, ph2, dr2, dth2, dph2, rayE, rs,
-	                     k3_vr, k3_vth, k3_vph, k3_ar, k3_ath, k3_aph);
-
-	// k4 state
-	float r3 = r0 + step * k3_vr;
-	float th3 = th0 + step * k3_vth;
-	float ph3 = ph0 + step * k3_vph;
-	float dr3 = dr0 + step * k3_ar;
-	float dth3 = dth0 + step * k3_ath;
-	float dph3 = dph0 + step * k3_aph;
-
-	float k4_vr, k4_vth, k4_vph, k4_ar, k4_ath, k4_aph;
-	geodesic_derivatives(r3, th3, ph3, dr3, dth3, dph3, rayE, rs,
-	                     k4_vr, k4_vth, k4_vph, k4_ar, k4_ath, k4_aph);
-
-	// Combine to update
-	r  = r0  + (step / 6.0) * (k1_vr  + 2.0 * k2_vr  + 2.0 * k3_vr  + k4_vr);
-	theta = th0 + (step / 6.0) * (k1_vth + 2.0 * k2_vth + 2.0 * k3_vth + k4_vth);
-	phi   = ph0 + (step / 6.0) * (k1_vph + 2.0 * k2_vph + 2.0 * k3_vph + k4_vph);
-	dr    = dr0 + (step / 6.0) * (k1_ar  + 2.0 * k2_ar  + 2.0 * k3_ar  + k4_ar);
-	dtheta= dth0 + (step / 6.0) * (k1_ath + 2.0 * k2_ath + 2.0 * k3_ath + k4_ath);
-	dphi  = dph0 + (step / 6.0) * (k1_aph + 2.0 * k2_aph + 2.0 * k3_aph + k4_aph);
-
-	// keep theta in a reasonable band, wrap phi
-	if (theta < 0.0) theta = -theta;
-	if (theta > PI) theta = mod(theta, PI);
-	phi = mod(phi + PI, 2.0 * PI) - PI;
+bool rk4_step(inout float r, inout float theta, inout float phi,
+              inout float dr, inout float dtheta, inout float dphi,
+              float rayE, float rs, float h) {
+    
+    // Save original state
+    float r0 = r, th0 = theta, ph0 = phi;
+    float dr0 = dr, dth0 = dtheta, dph0 = dphi;
+    
+    // k1
+    float k1_r, k1_th, k1_ph, k1_dr, k1_dth, k1_dph;
+    if (!geodesic_derivatives(r0, th0, ph0, dr0, dth0, dph0, rayE, rs,
+                             k1_r, k1_th, k1_ph, k1_dr, k1_dth, k1_dph)) {
+        return false;
+    }
+    
+    // k2
+    float k2_r, k2_th, k2_ph, k2_dr, k2_dth, k2_dph;
+    if (!geodesic_derivatives(r0 + 0.5*h*k1_r, th0 + 0.5*h*k1_th, ph0 + 0.5*h*k1_ph,
+                             dr0 + 0.5*h*k1_dr, dth0 + 0.5*h*k1_dth, dph0 + 0.5*h*k1_dph,
+                             rayE, rs,
+                             k2_r, k2_th, k2_ph, k2_dr, k2_dth, k2_dph)) {
+        return false;
+    }
+    
+    // k3
+    float k3_r, k3_th, k3_ph, k3_dr, k3_dth, k3_dph;
+    if (!geodesic_derivatives(r0 + 0.5*h*k2_r, th0 + 0.5*h*k2_th, ph0 + 0.5*h*k2_ph,
+                             dr0 + 0.5*h*k2_dr, dth0 + 0.5*h*k2_dth, dph0 + 0.5*h*k2_dph,
+                             rayE, rs,
+                             k3_r, k3_th, k3_ph, k3_dr, k3_dth, k3_dph)) {
+        return false;
+    }
+    
+    // k4
+    float k4_r, k4_th, k4_ph, k4_dr, k4_dth, k4_dph;
+    if (!geodesic_derivatives(r0 + h*k3_r, th0 + h*k3_th, ph0 + h*k3_ph,
+                             dr0 + h*k3_dr, dth0 + h*k3_dth, dph0 + h*k3_dph,
+                             rayE, rs,
+                             k4_r, k4_th, k4_ph, k4_dr, k4_dth, k4_dph)) {
+        return false;
+    }
+    
+    // Compute updates
+    float new_r = r0 + (h/6.0) * (k1_r + 2.0*k2_r + 2.0*k3_r + k4_r);
+    float new_theta = th0 + (h/6.0) * (k1_th + 2.0*k2_th + 2.0*k3_th + k4_th);
+    float new_phi = ph0 + (h/6.0) * (k1_ph + 2.0*k2_ph + 2.0*k3_ph + k4_ph);
+    float new_dr = dr0 + (h/6.0) * (k1_dr + 2.0*k2_dr + 2.0*k3_dr + k4_dr);
+    float new_dtheta = dth0 + (h/6.0) * (k1_dth + 2.0*k2_dth + 2.0*k3_dth + k4_dth);
+    float new_dphi = dph0 + (h/6.0) * (k1_dph + 2.0*k2_dph + 2.0*k3_dph + k4_dph);
+    
+    // Validate new state
+    if (!all_valid(new_r, new_theta, new_phi, new_dr, new_dtheta, new_dphi)) {
+        return false;
+    }
+    
+    // Apply updates
+    r = new_r;
+    theta = new_theta;
+    phi = new_phi;
+    dr = new_dr;
+    dtheta = new_dtheta;
+    dphi = new_dphi;
+    
+    // Enforce theta bounds strictly - avoid poles
+    theta = clamp(theta, 0.01, PI - 0.01);
+    
+    // Normalize phi to [-π, π] using a more stable method
+    // This avoids discontinuities at phi = ±π
+    while (phi > PI) phi -= 2.0 * PI;
+    while (phi < -PI) phi += 2.0 * PI;
+    
+    return true;
 }
 
-// Convert spherical back to cartesian position for collision testing
 vec3 spherical_to_cartesian(float r, float theta, float phi) {
-	float st = sin(theta);
-	return vec3(r * st * cos(phi), r * st * sin(phi), r * cos(theta));
+    float st = sin(theta);
+    float ct = cos(theta);
+    float sp = sin(phi);
+    float cp = cos(phi);
+    return vec3(r * st * cp, r * st * sp, r * ct);
 }
 
-bool intersect_disc(vec3 pos) {
-    // Check thickness
-    if (abs(pos.z) > disc_thickness) return false;
-
-    // Check radial bounds
-    float r2 = pos.x*pos.x + pos.y*pos.y;
-    return (r2 >= disc_inner_radius*disc_inner_radius) &&
-           (r2 <= disc_outer_radius*disc_outer_radius);
+bool intersect_disc(vec3 local_pos) {
+    if (abs(local_pos.z) > disc_thickness) return false;
+    float r_sq = local_pos.x * local_pos.x + local_pos.y * local_pos.y;
+    float inner_sq = disc_inner_radius * disc_inner_radius;
+    float outer_sq = disc_outer_radius * disc_outer_radius;
+    return (r_sq >= inner_sq && r_sq <= outer_sq);
 }
 
-// ---------- Trace loop ----------
-vec3 trace_geodesic(vec3 cam_pos, vec3 ray_dir, float rs) {
+vec3 trace_geodesic(vec3 cam_pos, vec3 ray_dir, float rs, out float initial_r, out float min_r, out int steps, out bool had_error) {
     float r, theta, phi, dr, dtheta, dphi, rayE;
-    init_ray_from_camera(cam_pos, ray_dir, rs, r, theta, phi, dr, dtheta, dphi, rayE);
-
-    if (!(r > 0.0)) return background_color;
-    if (r <= rs) return black_hole_color;
-
+    
+    had_error = false;
+    
+    // Initialize ray
+    if (!init_ray_from_camera(cam_pos, ray_dir, rs, r, theta, phi, dr, dtheta, dphi, rayE)) {
+        had_error = true;
+        return vec3(1.0, 0.0, 0.0); // Red for initialization error
+    }
+    
+    initial_r = r;
+    min_r = r;
+    steps = 0;
+    
+    // Main integration loop
     for (int i = 0; i < max_steps; i++) {
-        // Check if ray hit event horizon
-        if (r <= rs) {
+        steps = i;
+        
+        // Check termination conditions
+        if (r <= rs * HORIZON_MARGIN) {
             return black_hole_color;
         }
-
-        // Check if ray escaped to infinity
+        
         if (r > escape_radius) {
-            break;
+            return background_color;
         }
-
-        // Convert current position to cartesian (relative to black hole)
+        
+        // Track minimum approach
+        if (r < min_r) min_r = r;
+        
+        // Check disc intersection
         vec3 local_pos = spherical_to_cartesian(r, theta, phi);
-
-        // Check disc intersection (in local coordinates)
         if (intersect_disc(local_pos)) {
             return disc_color;
         }
-
-        // Advance geodesic
-        rk4_step_state(r, theta, phi, dr, dtheta, dphi, rayE, rs, dlambda);
+        
+        // Adaptive step size: smaller near horizon, larger far away
+        float adaptive_h = step_size * max(r - rs, rs * 0.1) * 1e-3;
+        
+        // Clamp step size to reasonable bounds
+        adaptive_h = clamp(adaptive_h, 0.01, 10.0);
+        
+        // Integrate one step
+        if (!rk4_step(r, theta, phi, dr, dtheta, dphi, rayE, rs, adaptive_h)) {
+            had_error = true;
+            return vec3(1.0, 0.0, 1.0); // Magenta for integration error
+        }
     }
-
+    
+    // Max steps reached
     return background_color;
 }
 
-// ---------- Fragment entry ----------
 void fragment() {
-    // Build camera basis
+    // Camera basis
     vec3 forward = normalize(camera_target - camera_position);
     vec3 world_up = vec3(0.0, 1.0, 0.0);
     vec3 right = normalize(cross(forward, world_up));
+    
+    // Handle degenerate case
     if (length(right) < 1e-5) {
         world_up = vec3(1.0, 0.0, 0.0);
         right = normalize(cross(forward, world_up));
     }
-    vec3 up = cross(right, forward);
-
-    // Map fragcoord to [-1,1] range
+    vec3 up = normalize(cross(right, forward));
+    
+    // Screen to NDC
     vec2 uv = (FRAGCOORD.xy / viewport_size) * 2.0 - 1.0;
-
-    // Aspect correction
     float aspect = viewport_size.x / viewport_size.y;
     uv.x *= aspect;
-
-    // Field of view scaling
+    
+    // Apply FOV
     float tan_half_fov = tan(radians(camera_fov) * 0.5);
     uv *= tan_half_fov;
-
-    // Compute ray direction
+    
+    // Ray direction
     vec3 ray_dir = normalize(uv.x * right + uv.y * up + forward);
-
+    
     vec3 color_out;
-
+    
     if (!use_geodesics) {
-        // Robust sphere intersection fallback
+        // Simple sphere test
         vec3 oc = camera_position - black_hole_position;
         float b = dot(oc, ray_dir);
         float c = dot(oc, oc) - schwarzschild_radius * schwarzschild_radius;
-        float disc = b*b - c;
-
-        if (disc >= 0.0) {
-            // Compute nearest positive intersection
-            float sqrt_disc = sqrt(disc);
-            float t1 = -b - sqrt_disc;
-            float t2 = -b + sqrt_disc;
-            float t = (t1 > 0.0) ? t1 : ((t2 > 0.0) ? t2 : -1.0);
-
-            if (t > 0.0) {
-                color_out = black_hole_color;
-            } else {
-                color_out = background_color;
-            }
+        float discriminant = b * b - c;
+        
+        if (discriminant >= 0.0) {
+            float t = -b - sqrt(discriminant);
+            color_out = (t > 0.0) ? black_hole_color : background_color;
         } else {
             color_out = background_color;
         }
     } else {
-        // Geodesic path tracing
-        color_out = trace_geodesic(camera_position, ray_dir, schwarzschild_radius);
+        float initial_r, min_r;
+        int steps;
+        bool had_error;
+        
+        color_out = trace_geodesic(camera_position, ray_dir, schwarzschild_radius, 
+                                   initial_r, min_r, steps, had_error);
+        
+        // Debug visualizations
+        if (debug_mode == 1) {
+            // Initial distance
+            color_out = vec3(initial_r / 200.0, 0.0, 0.0);
+        } else if (debug_mode == 2) {
+            // Minimum radius (red=close, green=far)
+            float norm = clamp((min_r - schwarzschild_radius) / 50.0, 0.0, 1.0);
+            color_out = vec3(1.0 - norm, norm, 0.0);
+        } else if (debug_mode == 3) {
+            // Step count
+            float ratio = float(steps) / float(max_steps);
+            color_out = vec3(ratio, ratio * 0.5, 1.0 - ratio);
+        } else if (debug_mode == 4) {
+            // Show errors
+            if (had_error) {
+                color_out = vec3(1.0, 1.0, 0.0); // Yellow for errors
+            }
+        }
     }
-
+    
     COLOR = vec4(color_out, 1.0);
 }
