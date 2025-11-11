@@ -8,14 +8,21 @@ uniform vec3 background_color : source_color = vec3(0.05, 0.05, 0.08);
 
 uniform bool use_geodesics = true;
 uniform int max_steps = 500;
-uniform float dlambda = 0.5;            // integration step size in affine parameter
+uniform float dlambda = 1e-5;            // integration step size in affine parameter
 uniform float escape_radius = 1e6;
 
 uniform vec3 camera_position = vec3(0.0, 0.0, -100.0);
 uniform vec3 camera_target = vec3(0.0, 0.0, 1.0);
 uniform float camera_fov = 60.0;        // degrees
 
+// ---------- Accretion Disc Params --------
+uniform float disc_inner_radius = 12.0; // radius of inner edge
+uniform float disc_outer_radius = 25.0; // outer edge
+uniform vec3 disc_color : source_color = vec3(1.0, 0.5, 0.0); // orange-ish
+uniform float disc_thickness = 0.5; // half-thickness in z
+
 // ---------- Constants & helpers ----------
+uniform vec2 viewport_size = vec2(144.0, 81.0);
 const float EPS = 1e-6;
 
 // Numerically-stable sphere intersection (for fallback)
@@ -50,10 +57,11 @@ void init_ray_from_camera(vec3 cam_pos, vec3 ray_dir, float rs,
                           out float dr, out float dtheta, out float dphi,
                           out float rayE) {
 	// cartesian -> spherical (camera position)
-	r = length(cam_pos);
-	if (r < EPS) r = EPS;
-	theta = acos(clamp(cam_pos.z / r, -1.0, 1.0));
-	phi = atan(cam_pos.y, cam_pos.x);
+	vec3 rel_pos = cam_pos - black_hole_position;
+	r = length(rel_pos);
+	theta = acos(clamp(rel_pos.z / r, -1.0, 1.0));
+	phi = atan(rel_pos.y, rel_pos.x);
+
 
 	// Compute spherical-basis components of direction
 	float sin_t = sin(theta);
@@ -61,8 +69,14 @@ void init_ray_from_camera(vec3 cam_pos, vec3 ray_dir, float rs,
 	float sin_p = sin(phi);
 	float cos_p = cos(phi);
 
-	// dr/dlambda = dot(direction, e_r)
-	dr = sin_t * cos_p * ray_dir.x + sin_t * sin_p * ray_dir.y + cos_t * ray_dir.z;
+	// Convert ray_dir into BH-local basis
+	vec3 er = normalize(rel_pos);
+	vec3 e_theta = vec3(cos_t*cos_p, cos_t*sin_p, -sin_t);
+	vec3 e_phi = vec3(-sin_p, cos_p, 0.0);
+
+	dr = dot(ray_dir, er);
+	dtheta = dot(ray_dir, e_theta) / r;
+	dphi = dot(ray_dir, e_phi) / (r * sin_t + EPS);
 
 	// dtheta/dlambda = dot(direction, e_theta) / r
 	dtheta = (cos_t * cos_p * ray_dir.x + cos_t * sin_p * ray_dir.y - sin_t * ray_dir.z) / max(r, EPS);
@@ -180,66 +194,99 @@ vec3 spherical_to_cartesian(float r, float theta, float phi) {
 	return vec3(r * st * cos(phi), r * st * sin(phi), r * cos(theta));
 }
 
+bool intersect_disc(vec3 pos) {
+    // Check thickness
+    if (abs(pos.z) > disc_thickness) return false;
+
+    // Check radial bounds
+    float r2 = pos.x*pos.x + pos.y*pos.y;
+    return (r2 >= disc_inner_radius*disc_inner_radius) &&
+           (r2 <= disc_outer_radius*disc_outer_radius);
+}
+
 // ---------- Trace loop ----------
 vec3 trace_geodesic(vec3 cam_pos, vec3 ray_dir, float rs) {
-	// Initialize spherical state & conserved rayE
-	float r, theta, phi, dr, dtheta, dphi, rayE;
-	init_ray_from_camera(cam_pos, ray_dir, rs, r, theta, phi, dr, dtheta, dphi, rayE);
+    float r, theta, phi, dr, dtheta, dphi, rayE;
+    init_ray_from_camera(cam_pos, ray_dir, rs, r, theta, phi, dr, dtheta, dphi, rayE);
 
-	// Sanity guards
-	if (!(r > 0.0)) return background_color;
-	if (r <= rs) return black_hole_color;
+    if (!(r > 0.0)) return background_color;
+    if (r <= rs) return black_hole_color;
 
-	// Integration loop
-	for (int i = 0; i < max_steps; i++) {
-		// Check capture
-		if (r <= rs) {
-			return black_hole_color;
-		}
+    for (int i = 0; i < max_steps; i++) {
+        if (r <= rs) {
+            return black_hole_color;
+        }
 
-		// Step forward
-		rk4_step_state(r, theta, phi, dr, dtheta, dphi, rayE, rs, dlambda);
+        rk4_step_state(r, theta, phi, dr, dtheta, dphi, rayE, rs, dlambda);
 
-		// Recompute cartesian pos for intersection test
-		vec3 pos = spherical_to_cartesian(r, theta, phi) + black_hole_position;
+        vec3 pos = spherical_to_cartesian(r, theta, phi) + black_hole_position;
 
-		// Check escape far away
-		if (r > escape_radius) break;
-	}
-	return background_color;
+        //// ----- DISC INTERSECTION -----
+        if (intersect_disc(pos)) {
+            return disc_color;
+        }
+
+        if (r > escape_radius) break;
+    }
+
+    return background_color;
 }
 
 // ---------- Fragment entry ----------
 void fragment() {
-	// Build camera basis
-	vec3 forward = normalize(camera_target - camera_position);
-	vec3 world_up = vec3(0.0, 1.0, 0.0);
-	vec3 right = normalize(cross(forward, world_up));
-	if (length(right) < 1e-5) {
-		world_up = vec3(1.0, 0.0, 0.0);
-		right = normalize(cross(forward, world_up));
-	}
-	vec3 up = cross(right, forward);
+    // Build camera basis
+    //vec3 forward = normalize(camera_target - camera_position);
+	vec3 forward = normalize(camera_target);
+    vec3 world_up = vec3(0.0, 1.0, 0.0);
+    vec3 right = normalize(cross(forward, world_up));
+    if (length(right) < 1e-5) {
+        world_up = vec3(1.0, 0.0, 0.0);
+        right = normalize(cross(forward, world_up));
+    }
+    vec3 up = cross(right, forward);
 
-	// Map screen uv to ray direction
-	vec2 uv = SCREEN_UV * 2.0 - 1.0;
-	float aspect = UV.x / UV.y;
-	float tan_half_fov = tan(radians(camera_fov) * 0.5);
-	uv.x *= aspect * tan_half_fov;
-	uv.y *= tan_half_fov;
-	vec3 ray_dir = normalize(uv.x * right + uv.y * up + forward);
+    // Map fragcoord to [-1,1] range
+    vec2 uv = (FRAGCOORD.xy / viewport_size) * 2.0 - 1.0;
 
-	vec3 color_out;
-	if (!use_geodesics) {
-		// Simple sphere intersection fallback
-		if (sphere_intersect(camera_position, ray_dir, black_hole_position, schwarzschild_radius)) {
-			color_out = black_hole_color;
-		} else {
-			color_out = background_color;
-		}
-	} else {
-		color_out = trace_geodesic(camera_position, ray_dir, schwarzschild_radius);
-	}
+    // Aspect correction
+    float aspect = viewport_size.x / viewport_size.y;
+    uv.x *= aspect;
 
-	COLOR = vec4(color_out, 1.0);
+    // Field of view scaling
+    float tan_half_fov = tan(radians(camera_fov) * 0.5);
+    uv *= tan_half_fov;
+
+    // Compute ray direction
+    vec3 ray_dir = normalize(uv.x * right + uv.y * up + forward);
+
+    vec3 color_out;
+
+    if (!use_geodesics) {
+        // Robust sphere intersection fallback
+        vec3 oc = camera_position - black_hole_position;
+        float b = dot(oc, ray_dir);
+        float c = dot(oc, oc) - schwarzschild_radius * schwarzschild_radius;
+        float disc = b*b - c;
+
+        if (disc >= 0.0) {
+            // Compute nearest positive intersection
+            float sqrt_disc = sqrt(disc);
+            float t1 = -b - sqrt_disc;
+            float t2 = -b + sqrt_disc;
+            float t = (t1 > 0.0) ? t1 : ((t2 > 0.0) ? t2 : -1.0);
+
+            if (t > 0.0) {
+                color_out = black_hole_color;
+            } else {
+                color_out = background_color;
+            }
+        } else {
+            color_out = background_color;
+        }
+    } else {
+        // Geodesic path tracing
+        color_out = trace_geodesic(camera_position, ray_dir, schwarzschild_radius);
+    }
+
+    COLOR = vec4(color_out, 1.0);
 }
