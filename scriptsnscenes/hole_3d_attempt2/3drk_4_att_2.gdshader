@@ -58,6 +58,7 @@ void init_ray_from_camera(vec3 cam_pos, vec3 ray_dir, float rs,
                           out float rayE) {
 	// cartesian -> spherical (camera position)
 	vec3 rel_pos = cam_pos - black_hole_position;
+	//vec3 rel_pos = black_hole_position - cam_pos;
 	r = length(rel_pos);
 	theta = acos(clamp(rel_pos.z / r, -1.0, 1.0));
 	phi = atan(rel_pos.y, rel_pos.x);
@@ -213,20 +214,26 @@ vec3 trace_geodesic(vec3 cam_pos, vec3 ray_dir, float rs) {
     if (r <= rs) return black_hole_color;
 
     for (int i = 0; i < max_steps; i++) {
+        // Check if ray hit event horizon
         if (r <= rs) {
             return black_hole_color;
         }
 
-        rk4_step_state(r, theta, phi, dr, dtheta, dphi, rayE, rs, dlambda);
+        // Check if ray escaped to infinity
+        if (r > escape_radius) {
+            break;
+        }
 
-        vec3 pos = spherical_to_cartesian(r, theta, phi) + black_hole_position;
+        // Convert current position to cartesian (relative to black hole)
+        vec3 local_pos = spherical_to_cartesian(r, theta, phi);
 
-        //// ----- DISC INTERSECTION -----
-        if (intersect_disc(pos)) {
+        // Check disc intersection (in local coordinates)
+        if (intersect_disc(local_pos)) {
             return disc_color;
         }
 
-        if (r > escape_radius) break;
+        // Advance geodesic
+        rk4_step_state(r, theta, phi, dr, dtheta, dphi, rayE, rs, dlambda);
     }
 
     return background_color;
@@ -235,8 +242,7 @@ vec3 trace_geodesic(vec3 cam_pos, vec3 ray_dir, float rs) {
 // ---------- Fragment entry ----------
 void fragment() {
     // Build camera basis
-    //vec3 forward = normalize(camera_target - camera_position);
-	vec3 forward = normalize(camera_target);
+    vec3 forward = normalize(camera_target - camera_position);
     vec3 world_up = vec3(0.0, 1.0, 0.0);
     vec3 right = normalize(cross(forward, world_up));
     if (length(right) < 1e-5) {

@@ -29,17 +29,17 @@ shader_parameter/schwarzschild_radius = 10.0
 shader_parameter/black_hole_color = Color(0, 0, 0, 1)
 shader_parameter/background_color = Color(0.19110322, 0.19114998, 0.25370696, 1)
 shader_parameter/use_geodesics = true
-shader_parameter/max_steps = 1115
-shader_parameter/dlambda = 0.57
-shader_parameter/escape_radius = 1000000.0
-shader_parameter/camera_position = Vector3(0, 0, -30)
+shader_parameter/max_steps = 500
+shader_parameter/dlambda = 0.385
+shader_parameter/escape_radius = 1000000000.0
+shader_parameter/camera_position = Vector3(0, 0, -134.135)
 shader_parameter/camera_target = Vector3(0, 0, 1)
 shader_parameter/camera_fov = 60.0
-shader_parameter/disc_inner_radius = 12.0
-shader_parameter/disc_outer_radius = 25.0
-shader_parameter/disc_color = Color(1, 0.5, 0, 1)
+shader_parameter/disc_inner_radius = 1.0
+shader_parameter/disc_outer_radius = 2.0
+shader_parameter/disc_color = Color(0.4687013, 0.22152698, 9.62615e-08, 1)
 shader_parameter/disc_thickness = 0.5
-shader_parameter/viewport_size = Vector2(144, 81)
+shader_parameter/viewport_size = Vector2(288, 162)
 
 [node name="3DRK4_Att2" type="Control"]
 material = SubResource("ShaderMaterial_b48uo")
@@ -60,11 +60,11 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 stretch = true
-stretch_shrink = 8
+stretch_shrink = 4
 
 [node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
 disable_3d = true
-size = Vector2i(144, 81)
+size = Vector2i(288, 162)
 
 [node name="ShaderRect" type="ColorRect" parent="SubViewportContainer/SubViewport"]
 material = SubResource("ShaderMaterial_ibl3l")
