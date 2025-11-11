@@ -1,0 +1,64 @@
+[gd_scene load_steps=5 format=3 uid="uid://c8eg3lxxp6dkk"]
+
+[ext_resource type="Shader" uid="uid://b5igeaf2yd1ue" path="res://scriptsnscenes/hole_3d_attempt2/3drk_4_att_2.gdshader" id="1_ibl3l"]
+[ext_resource type="Script" uid="uid://b3upskq6r7ebj" path="res://scriptsnscenes/hole_3d_attempt2/3_drk_4_att_2.gd" id="1_y070x"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_b48uo"]
+shader = ExtResource("1_ibl3l")
+shader_parameter/black_hole_position = Vector3(0, 0, 0)
+shader_parameter/schwarzschild_radius = 10.0
+shader_parameter/black_hole_color = Vector3(0, 0, 0)
+shader_parameter/background_color = Vector3(0.05, 0.05, 0.08)
+shader_parameter/use_geodesics = true
+shader_parameter/max_steps = 500
+shader_parameter/dlambda = 0.5
+shader_parameter/escape_radius = 1000000.0
+shader_parameter/camera_position = Vector3(0, 0, -100)
+shader_parameter/camera_target = Vector3(0, 0, 1)
+shader_parameter/camera_fov = 60.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ibl3l"]
+shader = ExtResource("1_ibl3l")
+shader_parameter/black_hole_position = Vector3(0, 0, 100)
+shader_parameter/schwarzschild_radius = 10.0
+shader_parameter/black_hole_color = Vector3(0, 0, 0)
+shader_parameter/background_color = Vector3(0.05, 0.05, 0.08)
+shader_parameter/use_geodesics = true
+shader_parameter/max_steps = 500
+shader_parameter/dlambda = 0.5
+shader_parameter/escape_radius = 1000000.0
+shader_parameter/camera_position = Vector3(0, 0, 0)
+shader_parameter/camera_target = Vector3(0, 0, 1)
+shader_parameter/camera_fov = 60.0
+
+[node name="3DRK4_Att2" type="Control"]
+material = SubResource("ShaderMaterial_b48uo")
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_y070x")
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+stretch_shrink = 8
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
+disable_3d = true
+size = Vector2i(144, 81)
+
+[node name="ShaderRect" type="ColorRect" parent="SubViewportContainer/SubViewport"]
+material = SubResource("ShaderMaterial_ibl3l")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
