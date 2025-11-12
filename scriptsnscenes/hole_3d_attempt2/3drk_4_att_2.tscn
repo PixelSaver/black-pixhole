@@ -21,6 +21,7 @@ shader_parameter/disc_color = Color(0.56936985, 0.2746202, 9.62615e-08, 1)
 shader_parameter/disc_thickness = 0.5
 shader_parameter/star_color = Color(1, 1, 1, 1)
 shader_parameter/star_brightness = 1.0
+shader_parameter/star_density = 0.005
 shader_parameter/viewport_size = Vector2(144, 81)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ibl3l"]
@@ -40,7 +41,8 @@ shader_parameter/disc_outer_radius = 36.76
 shader_parameter/disc_color = Color(1, 0.5, 0.2, 1)
 shader_parameter/disc_thickness = 2.86
 shader_parameter/star_color = Color(1, 1, 0.7294118, 1)
-shader_parameter/star_brightness = 0.68
+shader_parameter/star_brightness = 1.0
+shader_parameter/star_density = 0.01
 shader_parameter/viewport_size = Vector2(144, 81)
 
 [node name="3DRK4_Att2" type="Control" node_paths=PackedStringArray("pause")]

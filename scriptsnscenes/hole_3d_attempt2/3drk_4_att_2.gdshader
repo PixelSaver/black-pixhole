@@ -8,7 +8,7 @@ uniform vec3 background_color : source_color = vec3(0.05, 0.05, 0.08);
 
 uniform int max_steps = 3000;
 uniform float step_size = 1.;
-uniform float escape_radius = 1e7;
+uniform float escape_radius = 1e4;
 
 uniform vec3 camera_position = vec3(0.0, 0.0, 100);
 uniform vec3 camera_target = vec3(0.0, 0.0, 0.0);
@@ -23,6 +23,7 @@ uniform float disc_thickness = 1.;
 // -------- Star params ---------
 uniform vec3 star_color : source_color = vec3(1.);
 uniform float star_brightness = 1.;
+uniform float star_density = 0.005;
 
 uniform vec2 viewport_size = vec2(800.0, 600.0);
 
@@ -211,12 +212,9 @@ float getStarBrightness(vec3 dir) {
     
     vec2 hashCoord = vec2(phi, theta) * 100.0; // scale up for density
     float h = hash21(hashCoord);
-    
-    // Threshold for stars
-    if (h > 0.995) { // controls star density
-        return (h - 0.995) / 0.005; // tiny bright points
-    }
-    return 0.0;
+	if (h > 1.-star_density) { // increase chance for stars
+	    return (h - (1.-star_density)) / star_density;
+	}
 }
 
 void fragment() {
@@ -250,6 +248,7 @@ void fragment() {
 
     bool hitBlackHole = false;
     bool hitDisk = false;
+    bool escaped = false;
 
     // Main integration loop
     for (int i = 0; i < max_steps; i++) {
@@ -270,8 +269,7 @@ void fragment() {
         }
 
         prevPos = newPos;
-        // Check escape
-        if (ray.r > escape_radius) { break; }
+        if (ray.r > escape_radius) { escaped = true; break; }
     }
 
     // Apply colors in priority order
@@ -280,8 +278,9 @@ void fragment() {
     } else if (hitBlackHole) {
         color_out = black_hole_color;
     } else {
-        // if ray hits nothing, apply stars
-        float starVal = getStarBrightness(ray_dir) * star_brightness;
+        // Use final ray direction after bending
+		vec3 finalDir = normalize(vec3(ray.x, ray.y, ray.z) - black_hole_position);
+		float starVal = getStarBrightness(finalDir) * star_brightness;
         color_out = mix(color_out, star_color, starVal);
     }
 	
