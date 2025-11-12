@@ -8,42 +8,38 @@ shader = ExtResource("1_ibl3l")
 shader_parameter/black_hole_position = Vector3(0, 0, 0)
 shader_parameter/schwarzschild_radius = 10.0
 shader_parameter/black_hole_color = Color(0, 0, 0, 1)
-shader_parameter/background_color = Color(0.05, 0.05, 0.08, 1)
-shader_parameter/use_geodesics = true
-shader_parameter/max_steps = 500
-shader_parameter/step_size = 0.1
+shader_parameter/background_color = Color(0.25955018, 0.25966895, 0.33807322, 1)
+shader_parameter/max_steps = 5000
+shader_parameter/step_size = 10000000.0
 shader_parameter/escape_radius = 1000000.0
 shader_parameter/camera_position = Vector3(0, 0, -100)
 shader_parameter/camera_target = Vector3(0, 0, 1)
 shader_parameter/camera_fov = 60.0
 shader_parameter/disc_inner_radius = 12.0
 shader_parameter/disc_outer_radius = 25.0
-shader_parameter/disc_color = Color(1, 0.5, 0, 1)
+shader_parameter/disc_color = Color(0.56936985, 0.2746202, 9.62615e-08, 1)
 shader_parameter/disc_thickness = 0.5
-shader_parameter/debug_mode = 0
 shader_parameter/viewport_size = Vector2(144, 81)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ibl3l"]
 shader = ExtResource("1_ibl3l")
 shader_parameter/black_hole_position = Vector3(0, 0, 0)
-shader_parameter/schwarzschild_radius = 10.0
+shader_parameter/schwarzschild_radius = 6.275
 shader_parameter/black_hole_color = Color(0, 0, 0, 1)
 shader_parameter/background_color = Color(0.19110322, 0.19114998, 0.25370696, 1)
-shader_parameter/use_geodesics = true
-shader_parameter/max_steps = 4255
-shader_parameter/step_size = 2.81
-shader_parameter/escape_radius = 10000000.0
-shader_parameter/camera_position = Vector3(0, 0, -35.25)
+shader_parameter/max_steps = 4205
+shader_parameter/step_size = 0.55
+shader_parameter/escape_radius = 10000.0
+shader_parameter/camera_position = Vector3(0, 10.74, 44.68)
 shader_parameter/camera_target = Vector3(0, 0, 0)
 shader_parameter/camera_fov = 60.0
-shader_parameter/disc_inner_radius = 15.0
-shader_parameter/disc_outer_radius = 21.485
-shader_parameter/disc_color = Color(1, 0.5, 0, 1)
-shader_parameter/disc_thickness = 0.5
-shader_parameter/debug_mode = 4
+shader_parameter/disc_inner_radius = 14.84
+shader_parameter/disc_outer_radius = 21.625
+shader_parameter/disc_color = Color(1, 0.5, 0.2, 1)
+shader_parameter/disc_thickness = 1000000000.0
 shader_parameter/viewport_size = Vector2(144, 81)
 
-[node name="3DRK4_Att2" type="Control"]
+[node name="3DRK4_Att2" type="Control" node_paths=PackedStringArray("pause")]
 material = SubResource("ShaderMaterial_b48uo")
 layout_mode = 3
 anchors_preset = 15
@@ -52,8 +48,10 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_y070x")
+pause = NodePath("SubViewportContainer")
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="."]
+process_mode = 4
 texture_filter = 1
 layout_mode = 1
 anchors_preset = 15
@@ -66,7 +64,9 @@ stretch_shrink = 8
 
 [node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
 disable_3d = true
+handle_input_locally = false
 size = Vector2i(144, 81)
+render_target_update_mode = 4
 
 [node name="ShaderRect" type="ColorRect" parent="SubViewportContainer/SubViewport"]
 material = SubResource("ShaderMaterial_ibl3l")

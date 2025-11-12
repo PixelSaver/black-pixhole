@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://dtj0dxci5btb8"]
-
-[ext_resource type="Script" uid="uid://b0ggknvmcuysk" path="res://scriptsnscenes/hole2/hole2.gd" id="1_xpg7l"]
-
-[node name="Control" type="Node2D"]
-script = ExtResource("1_xpg7l")
