@@ -4,14 +4,17 @@ class_name RK4Attempt2
 @onready var shader_mat := $SubViewportContainer/SubViewport/ShaderRect.material as ShaderMaterial
 @export var pause : Control 
 var target := Vector3.ZERO
-var distance := 100
+var distance := 60
 var yaw := 0.0
 var pitch := 0.0
 var rotation_speed := 0.01
 var fov := 60.0
 
 func _ready():
+	Global.rk4_att2 = self
 	pause.process_mode = Node.PROCESS_MODE_PAUSABLE
+	yaw = .5
+	pitch = -.3
 	_update_shader_camera()
 
 func _input(event):
