@@ -2,32 +2,27 @@ shader_type canvas_item;
 
 // ---------- User uniforms ----------
 uniform vec3 black_hole_position = vec3(0.0, 0.0, 0.0);
-uniform float schwarzschild_radius = 1.269e10; // Match SagA_rs from C++
+uniform float schwarzschild_radius = 1.;
 uniform vec3 black_hole_color : source_color = vec3(0.0, 0.0, 0.0);
 uniform vec3 background_color : source_color = vec3(0.05, 0.05, 0.08);
 
-uniform int max_steps = 60000;
-uniform float step_size = 1e7; // Match D_LAMBDA from C++
-uniform float escape_radius = 1e30;
+uniform int max_steps = 3000;
+uniform float step_size = 1.;
+uniform float escape_radius = 1e7;
 
-uniform vec3 camera_position = vec3(0.0, 0.0, 6.34194e10);
+uniform vec3 camera_position = vec3(0.0, 0.0, 100);
 uniform vec3 camera_target = vec3(0.0, 0.0, 0.0);
 uniform float camera_fov = 60.0;
 
 // ---------- Accretion Disc Params --------
-uniform float disc_inner_radius = 2.7918e10; // 2.2 * rs
-uniform float disc_outer_radius = 6.5988e10; // 5.2 * rs
+uniform float disc_inner_radius = 2.2;
+uniform float disc_outer_radius = 5.2;
 uniform vec3 disc_color : source_color = vec3(1.0, 0.5, 0.2);
-uniform float disc_thickness = 1e9;
+uniform float disc_thickness = 1.;
 
-// ---------- Grid Params --------
-uniform bool show_grid = true;
-uniform vec3 grid_color : source_color = vec3(0.5, 0.7, 1.0);
-uniform float grid_spacing = 1e10; // Spacing between grid lines (matches C++)
-uniform float grid_line_thickness = 2e9; // Width of grid lines
-uniform float grid_alpha = 0.8;
-uniform float grid_range = 1.5e11; // How far grid extends
-uniform float grid_warp_offset = 3e10; // Offset from C++ code
+// -------- Star params ---------
+uniform vec3 star_color : source_color = vec3(1.);
+uniform float star_brightness = 1.;
 
 uniform vec2 viewport_size = vec2(800.0, 600.0);
 
@@ -63,6 +58,9 @@ Ray initRay(vec3 pos, vec3 dir) {
     float ct = cos(ray.theta);
     float sp = sin(ray.phi);
     float cp = cos(ray.phi);
+	
+	// clamp to reduce noise
+	st = max(st, 1e-2);
 
     ray.dr = st * cp * dx + st * sp * dy + ct * dz;
     ray.dtheta = (ct * cp * dx + ct * sp * dy - st * dz) / max(ray.r, EPS);
@@ -168,107 +166,6 @@ float getAdaptiveStepSize(float r) {
     }
 }
 
-// Calculate warped Y coordinate for the grid surface (matching C++ exactly)
-// This replicates the C++ generateGrid() function
-float calculateWarpedGridY(float worldX, float worldZ) {
-    float y = 0.0;
-    
-    // For each massive object (in our case, just the black hole at origin)
-    // Compute distance in XZ plane from the object
-    float dx = worldX - black_hole_position.x;
-    float dz = worldZ - black_hole_position.z;
-    float dist = sqrt(dx * dx + dz * dz);
-    
-    // Apply Schwarzschild warping exactly as in C++
-    if (dist > schwarzschild_radius) {
-        float deltaY = 2.0 * sqrt(schwarzschild_radius * (dist - schwarzschild_radius));
-        y += deltaY - grid_warp_offset;
-    } else {
-        // Deep pit at/inside event horizon
-        y += 2.0 * sqrt(schwarzschild_radius * schwarzschild_radius) - grid_warp_offset;
-    }
-    
-    return y;
-}
-
-// Check if point is near a grid line (in XZ plane)
-// This matches how the C++ code generates grid lines in a regular pattern
-bool isOnGridLine(float worldX, float worldZ, out float lineStrength) {
-    // Calculate distance to nearest grid lines
-    float xMod = mod(worldX + grid_range, grid_spacing);
-    float zMod = mod(worldZ + grid_range, grid_spacing);
-    
-    float distToLineX = min(xMod, grid_spacing - xMod);
-    float distToLineZ = min(zMod, grid_spacing - zMod);
-    
-    float minDist = min(distToLineX, distToLineZ);
-    
-    // Sharp falloff with minimal smoothing for crisp lines
-    if (minDist < grid_line_thickness) {
-        // Very narrow smoothing range for crisp edges
-        lineStrength = 1.0 - smoothstep(grid_line_thickness * 0.8, grid_line_thickness, minDist);
-        return true;
-    }
-    
-    return false;
-}
-
-// Check if ray intersects the warped grid surface
-// This raytraces against the implicit surface defined by calculateWarpedGridY()
-bool checkGridIntersection(vec3 oldPos, vec3 newPos, out float gridStrength) {
-    if (!show_grid) return false;
-    
-    // Check if within grid range (XZ distance)
-    float oldDist2D = length(vec2(oldPos.x, oldPos.z));
-    float newDist2D = length(vec2(newPos.x, newPos.z));
-    
-    if (oldDist2D > grid_range && newDist2D > grid_range) return false;
-    
-    // Sample densely along the ray segment to find intersection with warped surface
-    const int numSamples = 32; // Increased samples for better detection
-    float bestStrength = 0.0;
-    
-    for (int i = 0; i <= numSamples; i++) {
-        float t = float(i) / float(numSamples);
-        vec3 samplePos = mix(oldPos, newPos, t);
-        
-        // Skip if outside grid range
-        float dist2D = length(vec2(samplePos.x, samplePos.z));
-        if (dist2D > grid_range) continue;
-        
-        // Calculate where the warped grid surface should be at this XZ position
-        // This is the key: the grid is a 2D mesh in XZ, warped in Y direction
-        float expectedY = calculateWarpedGridY(samplePos.x, samplePos.z);
-        
-        // Distance from sample point to the warped grid surface
-        float distToSurface = abs(samplePos.y - expectedY);
-        
-        // Tighter threshold for sharper surface detection
-        float surfaceThreshold = grid_spacing * 0.15;
-        
-        // If we're close to the surface, check if we're on a grid line
-        if (distToSurface < surfaceThreshold) {
-            float lineStr;
-            if (isOnGridLine(samplePos.x, samplePos.z, lineStr)) {
-                // Sharp fade based on distance to surface
-                float surfaceFade = 1.0 - smoothstep(0.0, surfaceThreshold * 0.5, distToSurface);
-                float strength = grid_alpha * lineStr * surfaceFade;
-                
-                if (strength > bestStrength) {
-                    bestStrength = strength;
-                }
-            }
-        }
-    }
-    
-    if (bestStrength > 0.01) {
-        gridStrength = bestStrength;
-        return true;
-    }
-    
-    return false;
-}
-
 bool checkDiskIntersection(vec3 oldPos, vec3 newPos, out vec3 intersectionPoint) {
     if (oldPos.y * newPos.y >= 0.0) {
         return false;
@@ -299,6 +196,28 @@ vec3 getDiskColor(vec3 intersectionPoint) {
 
     return mix(hot_color, cool_color, r_norm);
 }
+// Simple hash function to generate pseudo-random values
+float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 78.233);
+    return fract(p.x * p.y);
+}
+
+// Get star brightness based on direction
+float getStarBrightness(vec3 dir) {
+    // Convert spherical coordinates to a 2D hash domain
+    float phi = atan(dir.y, dir.x);
+    float theta = acos(clamp(dir.z, -1.0, 1.0));
+    
+    vec2 hashCoord = vec2(phi, theta) * 100.0; // scale up for density
+    float h = hash21(hashCoord);
+    
+    // Threshold for stars
+    if (h > 0.995) { // controls star density
+        return (h - 0.995) / 0.005; // tiny bright points
+    }
+    return 0.0;
+}
 
 void fragment() {
     // Camera basis
@@ -324,8 +243,6 @@ void fragment() {
 
     // Ray direction
     vec3 ray_dir = normalize(uv.x * right - uv.y * up + forward);
-
-    // Initialize ray
     Ray ray = initRay(camera_position, ray_dir);
 
     vec3 color_out = background_color;
@@ -333,33 +250,16 @@ void fragment() {
 
     bool hitBlackHole = false;
     bool hitDisk = false;
-    bool hitGrid = false;
-    float maxGridStrength = 0.0;
 
     // Main integration loop
     for (int i = 0; i < max_steps; i++) {
         // Check if ray hit event horizon
-        if (ray.r <= schwarzschild_radius * 1.01) {
-            hitBlackHole = true;
-            break;
-        }
-
-        // Adaptive step size
+        if (ray.r <= schwarzschild_radius * 1.01) { hitBlackHole = true; break; }
+        
         float adaptive_step = getAdaptiveStepSize(ray.r);
-
-        // Integrate one step
         rk4Step(ray, adaptive_step);
 
         vec3 newPos = vec3(ray.x, ray.y, ray.z);
-
-        // Check grid intersection
-        float gridStr;
-        if (!hitDisk && checkGridIntersection(prevPos, newPos, gridStr)) {
-            hitGrid = true;
-            if (gridStr > maxGridStrength) {
-                maxGridStrength = gridStr;
-            }
-        }
 
         // Check disk intersection
         vec3 diskIntersection;
@@ -370,22 +270,21 @@ void fragment() {
         }
 
         prevPos = newPos;
-
         // Check escape
-        if (ray.r > escape_radius) {
-            break;
-        }
+        if (ray.r > escape_radius) { break; }
     }
 
     // Apply colors in priority order
     if (hitDisk) {
         // Disk is opaque
-    } else if (hitGrid && maxGridStrength > 0.0) {
-        // Blend grid with background
-        color_out = mix(background_color, grid_color, maxGridStrength);
     } else if (hitBlackHole) {
         color_out = black_hole_color;
+    } else {
+        // if ray hits nothing, apply stars
+        float starVal = getStarBrightness(ray_dir) * star_brightness;
+        color_out = mix(color_out, star_color, starVal);
     }
+	
 
     COLOR = vec4(color_out, 1.0);
 }

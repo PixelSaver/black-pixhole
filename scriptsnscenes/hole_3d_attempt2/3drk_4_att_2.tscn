@@ -19,13 +19,8 @@ shader_parameter/disc_inner_radius = 12.0
 shader_parameter/disc_outer_radius = 25.0
 shader_parameter/disc_color = Color(0.56936985, 0.2746202, 9.62615e-08, 1)
 shader_parameter/disc_thickness = 0.5
-shader_parameter/show_grid = true
-shader_parameter/grid_color = Color(0.3, 0.3, 0.5, 1)
-shader_parameter/grid_spacing = 10000000000.0
-shader_parameter/grid_line_thickness = 200000000.0
-shader_parameter/grid_alpha = 0.6
-shader_parameter/grid_range = 150000000000.0
-shader_parameter/grid_warp_offset = 30000001000.0
+shader_parameter/star_color = Color(1, 1, 1, 1)
+shader_parameter/star_brightness = 1.0
 shader_parameter/viewport_size = Vector2(144, 81)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ibl3l"]
@@ -40,17 +35,12 @@ shader_parameter/escape_radius = 10000.0
 shader_parameter/camera_position = Vector3(-24.44, 46.51, 99.385)
 shader_parameter/camera_target = Vector3(0, 0, 0)
 shader_parameter/camera_fov = 60.0
-shader_parameter/disc_inner_radius = 14.84
-shader_parameter/disc_outer_radius = 21.625
+shader_parameter/disc_inner_radius = 26.12
+shader_parameter/disc_outer_radius = 36.76
 shader_parameter/disc_color = Color(1, 0.5, 0.2, 1)
-shader_parameter/disc_thickness = 1.0
-shader_parameter/show_grid = true
-shader_parameter/grid_color = Color(0.24790338, 0.4778424, 0.73846716, 1)
-shader_parameter/grid_spacing = 23.38
-shader_parameter/grid_line_thickness = 0.36
-shader_parameter/grid_alpha = 0.905
-shader_parameter/grid_range = 100.0
-shader_parameter/grid_warp_offset = 45.12
+shader_parameter/disc_thickness = 2.86
+shader_parameter/star_color = Color(1, 1, 0.7294118, 1)
+shader_parameter/star_brightness = 0.68
 shader_parameter/viewport_size = Vector2(144, 81)
 
 [node name="3DRK4_Att2" type="Control" node_paths=PackedStringArray("pause")]
