@@ -18,17 +18,25 @@ func _ready():
 	_update_shader_camera()
 
 func _input(event):
-	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		yaw -= event.relative.x * rotation_speed 
 		pitch = clamp(pitch - event.relative.y * rotation_speed, -PI/2.+.01, PI/2.+.01)
 		_update_shader_camera()
 	
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			distance = max(distance * 0.9, 10.)
+			distance = max(distance * 0.95, 10.)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			distance = min(distance * 1.1, 1.0e3)
+			distance = min(distance * 1.05, 1.0e3)
 		_update_shader_camera()
+	
+	if Input.is_action_just_pressed("pause"):
+		if pause.process_mode == Node.PROCESS_MODE_DISABLED:
+			pause.process_mode = Node.PROCESS_MODE_PAUSABLE
+			print("unpaused")
+		else:
+			print("paused")
+			pause.process_mode = Node.PROCESS_MODE_DISABLED
 
 func _update_shader_camera():
 	var x = distance * cos(pitch) * sin(yaw)

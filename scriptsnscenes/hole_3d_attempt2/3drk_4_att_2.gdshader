@@ -281,7 +281,9 @@ void fragment() {
         // Use final ray direction after bending
 		vec3 finalDir = normalize(vec3(ray.x, ray.y, ray.z) - black_hole_position);
 		float starVal = getStarBrightness(finalDir) * star_brightness;
-        color_out = mix(color_out, star_color, starVal);
+		if (starVal > 0.985) {
+	        color_out = mix(color_out, star_color, starVal);
+		}
     }
 	
 

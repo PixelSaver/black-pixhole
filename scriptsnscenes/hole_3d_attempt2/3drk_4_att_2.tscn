@@ -29,7 +29,7 @@ shader = ExtResource("1_ibl3l")
 shader_parameter/black_hole_position = Vector3(0, 0, 0)
 shader_parameter/schwarzschild_radius = 10.0
 shader_parameter/black_hole_color = Color(0, 0, 0, 1)
-shader_parameter/background_color = Color(0.19110322, 0.19114998, 0.25370696, 1)
+shader_parameter/background_color = Color(0.12303399, 0.12301215, 0.1687541, 1)
 shader_parameter/max_steps = 3000
 shader_parameter/step_size = 1.5
 shader_parameter/escape_radius = 10000.0
@@ -39,13 +39,14 @@ shader_parameter/camera_fov = 60.0
 shader_parameter/disc_inner_radius = 26.12
 shader_parameter/disc_outer_radius = 36.76
 shader_parameter/disc_color = Color(1, 0.5, 0.2, 1)
-shader_parameter/disc_thickness = 2.86
+shader_parameter/disc_thickness = 1000.0
 shader_parameter/star_color = Color(1, 1, 0.7294118, 1)
 shader_parameter/star_brightness = 1.0
 shader_parameter/star_density = 0.01
 shader_parameter/viewport_size = Vector2(144, 81)
 
 [node name="3DRK4_Att2" type="Control" node_paths=PackedStringArray("pause")]
+process_mode = 1
 material = SubResource("ShaderMaterial_b48uo")
 layout_mode = 3
 anchors_preset = 15
@@ -57,7 +58,6 @@ script = ExtResource("1_y070x")
 pause = NodePath("SubViewportContainer")
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="."]
-process_mode = 1
 texture_filter = 1
 layout_mode = 1
 anchors_preset = 15
