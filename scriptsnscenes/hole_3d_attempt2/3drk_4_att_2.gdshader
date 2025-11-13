@@ -359,7 +359,7 @@ bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStren
     if (!show_grid) return false;
 
     float tNear = 0.0;
-    float tFar = grid_range * 2.;
+    float tFar = length(camera_position) + grid_range;
     const int samples = 128;
 
     float prevY = origin.y - calculateWarpedGridY(origin.x, origin.z);
