@@ -24,6 +24,16 @@ uniform float disc_thickness = 1.;
 uniform vec3 star_color : source_color = vec3(1.);
 uniform float star_brightness = 1.;
 uniform float star_density = 0.005;
+uniform float star_size_scale = 0.012;
+
+// ---------- Grid Params --------
+uniform bool show_grid = true;
+uniform vec3 grid_color : source_color = vec3(0.5, 0.7, 1.0);
+uniform float grid_spacing = 1e10; // Spacing between grid lines (matches C++)
+uniform float grid_line_thickness = 2e9; // Width of grid lines
+uniform float grid_alpha = 0.8;
+uniform float grid_range = 1.5e11; // How far grid extends
+uniform float grid_warp_offset = 3e10; // Offset from C++ code
 
 uniform vec2 viewport_size = vec2(800.0, 600.0);
 
@@ -59,7 +69,7 @@ Ray initRay(vec3 pos, vec3 dir) {
     float ct = cos(ray.theta);
     float sp = sin(ray.phi);
     float cp = cos(ray.phi);
-	
+
 	// clamp to reduce noise
 	st = max(st, 1e-2);
 
@@ -205,19 +215,248 @@ float hash21(vec2 p) {
 }
 
 // Get star brightness based on direction
+// Procedural star brightness (returns 0 if no star here)
 float getStarBrightness(vec3 dir) {
-    // Convert spherical coordinates to a 2D hash domain
-    float phi = atan(dir.y, dir.x);
-    float theta = acos(clamp(dir.z, -1.0, 1.0));
-    
-    vec2 hashCoord = vec2(phi, theta) * 100.0; // scale up for density
+    // Spherical coords from direction
+    float phi = atan(dir.y, dir.x);               // -PI..PI
+    float theta = acos(clamp(dir.z, -1.0, 1.0));  // 0..PI
+
+    // Scale to a hash grid on the sphere
+    vec2 hashCoord = vec2(phi, theta) * 50.0; // tweak density via multiplier
     float h = hash21(hashCoord);
-	if (h > 1.-star_density) { // increase chance for stars
-	    return (h - (1.-star_density)) / star_density;
-	}
+
+    // Decide whether this hash cell contains a star
+    if (h > 1.0 - star_density) {
+        // local fractional position within hash cell; makes spot look centered
+        vec2 fracPos = fract(hashCoord);
+        vec2 center = vec2(0.5);
+        float dist = length(fracPos - center);
+
+        // map h -> local size/brightness
+        float t = (h - (1.0 - star_density)) / max(star_density, EPS); // 0..1
+        float angular_size = mix(0.003, 0.02, t) * star_size_scale; // angular radius (rough)
+
+        // star profile: gaussian falloff by cell-local distance
+        // normalize dist (0..~0.707). scale to relative radius
+        float profile = exp(-pow(dist / (angular_size + 1e-6), 2.0) * 8.0);
+
+        // small additional smoothness by sampling nearby fractional offsets (soft halo)
+        float halo = exp(-pow(dist / (angular_size * 3.0 + 1e-6), 2.0) * 4.0) * 0.6;
+
+        return clamp(profile * 1.0 + halo * 0.5, 0.0, 1.0);
+    }
+    return 0.0;
+}
+// Calculate warped Y coordinate for the grid surface (matching C++ exactly)
+// This replicates the C++ generateGrid() function
+float calculateWarpedGridY(float worldX, float worldZ) {
+    float y = 0.0;
+
+    // For each massive object (in our case, just the black hole at origin)
+    // Compute distance in XZ plane from the object
+    float dx = worldX - black_hole_position.x;
+    float dz = worldZ - black_hole_position.z;
+    float dist = sqrt(dx * dx + dz * dz);
+
+    // Apply Schwarzschild warping exactly as in C++
+    if (dist > schwarzschild_radius) {
+        float deltaY = 2.0 * sqrt(schwarzschild_radius * (dist - schwarzschild_radius));
+        y += deltaY - grid_warp_offset;
+    } else {
+        // Deep pit at/inside event horizon
+        y += 2.0 * sqrt(schwarzschild_radius * schwarzschild_radius) - grid_warp_offset;
+    }
+
+    return y;
+}
+
+// Returns fade factor (1.0 = fully visible, 0.0 = invisible) near grid_range
+float getGridEdgeFade(vec2 xz) {
+    float dist = length(xz);
+    // 0.8–1.0 range controls where the fade starts and ends
+    return 1.0 - smoothstep(grid_range * .9, grid_range, dist);
+}
+// Check if point is near a grid line (in XZ plane)
+// This matches how the C++ code generates grid lines in a regular pattern
+bool isOnGridLine(float worldX, float worldZ, out float lineStrength) {
+    // Calculate distance to nearest grid lines
+    float xMod = mod(worldX + grid_range, grid_spacing);
+    float zMod = mod(worldZ + grid_range, grid_spacing);
+
+    float distToLineX = min(xMod, grid_spacing - xMod);
+    float distToLineZ = min(zMod, grid_spacing - zMod);
+
+    float minDist = min(distToLineX, distToLineZ);
+
+    // Sharp falloff with minimal smoothing for crisp lines
+    if (minDist < grid_line_thickness) {
+        // Very narrow smoothing range for crisp edges
+        // lineStrength = 1.0 - smoothstep(grid_line_thickness * 0.99, grid_line_thickness, minDist);
+
+        lineStrength = step(minDist, grid_line_thickness * 0.99);
+        return true;
+    }
+
+    return false;
+}
+// Check if ray intersects the warped grid surface
+// This raytraces against the implicit surface defined by calculateWarpedGridY()
+bool checkGridIntersection(vec3 oldPos, vec3 newPos, out float gridStrength) {
+    if (!show_grid) return false;
+
+    // Check if within grid range (XZ distance)
+    float oldDist2D = length(vec2(oldPos.x, oldPos.z));
+    float newDist2D = length(vec2(newPos.x, newPos.z));
+
+    if (oldDist2D > grid_range && newDist2D > grid_range) return false;
+
+    // Sample densely along the ray segment to find intersection with warped surface
+    const int numSamples = 32; // Increased samples for better detection
+    float bestStrength = 0.0;
+
+    for (int i = 0; i <= numSamples; i++) {
+        float t = float(i) / float(numSamples);
+        vec3 samplePos = mix(oldPos, newPos, t);
+
+        // Skip if outside grid range
+        float dist2D = length(vec2(samplePos.x, samplePos.z));
+        if (dist2D > grid_range) continue;
+
+        // Calculate where the warped grid surface should be at this XZ position
+        // This is the key: the grid is a 2D mesh in XZ, warped in Y direction
+        float expectedY = calculateWarpedGridY(samplePos.x, samplePos.z);
+
+        const float GRID_SURFACE_THICKNESS = 0.001;
+        float distToSurface = abs(samplePos.y - expectedY);
+        if (distToSurface < GRID_SURFACE_THICKNESS) {
+            float lineStr;
+            if (isOnGridLine(samplePos.x, samplePos.z, lineStr)) {
+                gridStrength = grid_alpha * lineStr;
+                return true;
+                // float surfaceFade = 1.0 - smoothstep(0.0, GRID_SURFACE_THICKNESS, distToSurface);
+                // float strength = grid_alpha * lineStr * pow(surfaceFade, 4.0);
+
+                // if (strength > bestStrength) {
+                //     bestStrength = strength;
+                // }
+            }
+        }
+    }
+
+    if (bestStrength > 0.01) {
+        gridStrength = bestStrength;
+        return true;
+    }
+
+    return false;
+}
+// Finds the first exact intersection along the straight ray (origin + t * dir)
+// Returns true if found. Outputs gridStrength (0..1) and hitPos (world-space point).
+bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStrength, out vec3 hitPos) {
+    gridStrength = 0.0;
+    hitPos = vec3(0.0);
+
+    if (!show_grid) return false;
+
+    // search t in [0, tFar]
+    float tNear = 0.0;
+    float tFar = grid_range * 2.; // search slightly beyond grid_range to be safe
+
+    const int coarseSamples = 128;
+    float tPrev = tNear;
+    vec3 pPrev = origin + dir * tPrev;
+    // skip if outside XZ region initially
+    float yPrev = pPrev.y - calculateWarpedGridY(pPrev.x, pPrev.z);
+
+    for (int i = 1; i <= coarseSamples; ++i) {
+        float tf = float(i) / float(coarseSamples);
+        float t = mix(tNear, tFar, tf);
+        vec3 p = origin + dir * t;
+
+        // If this sample is outside XZ bounds, update and continue
+        float distXZ = length(vec2(p.x, p.z));
+        if (distXZ > grid_range || distXZ < schwarzschild_radius * 1.001) {
+            tPrev = t;
+            pPrev = p;
+            yPrev = p.y - calculateWarpedGridY(p.x, p.z);
+            continue;
+        }
+
+        float yNow = p.y - calculateWarpedGridY(p.x, p.z);
+
+        // look for a sign change (ray crossing the implicit surface) or very close approach
+        if (yPrev * yNow <= 0.0 || abs(yNow) < 1e-4) {
+            // bracket [tPrev, t] contains the crossing — refine with bisection
+            float ta = tPrev;
+            float tb = t;
+            for (int it = 0; it < 10; ++it) { // 10 iterations -> good precision
+                float tm = 0.5 * (ta + tb);
+                vec3 pm = origin + dir * tm;
+                // keep pm within valid XZ region
+                float pmDist = length(vec2(pm.x, pm.z));
+                if (pmDist > grid_range || pmDist < schwarzschild_radius * 1.001) {
+                    // if mid went outside, move interval away
+                    ta = tm;
+                    continue;
+                }
+                float fm = pm.y - calculateWarpedGridY(pm.x, pm.z);
+                if (abs(fm) < 1e-6) {
+                    ta = tm;
+                    tb = tm;
+                    break;
+                }
+                float fa = (origin + dir * ta).y - calculateWarpedGridY((origin + dir * ta).x, (origin + dir * ta).z);
+                // choose half with sign change or smaller absolute
+                if (fa * fm <= 0.0) {
+                    tb = tm;
+                } else {
+                    ta = tm;
+                }
+            }
+
+            float tHit = 0.5 * (ta + tb);
+            vec3 pHit = origin + dir * tHit;
+
+            // Final sanity check: must be inside XZ range
+            float finalDistXZ = length(vec2(pHit.x, pHit.z));
+            if (finalDistXZ > grid_range || finalDistXZ < schwarzschild_radius * 1.001) {
+                // Hit lies outside allowed region -> ignore
+                return false;
+            }
+
+            // Check whether this hit lies on a grid line
+            float lineStr;
+            if (!isOnGridLine(pHit.x, pHit.z, lineStr)) {
+                return false;
+            }
+
+            // compute edge fade from exact hit point
+            float edgeFade = getGridEdgeFade(pHit.xz);
+
+            // final strength: line strength * global alpha * edge fade
+            float strength = grid_alpha * lineStr * edgeFade;
+
+            if (strength > 0.001) {
+                gridStrength = strength;
+                hitPos = pHit;
+                return true; // first hit only
+            } else {
+                return false;
+            }
+        }
+
+        // continue walking samples
+        tPrev = t;
+        pPrev = p;
+        yPrev = yNow;
+    }
+
+    return false;
 }
 
 void fragment() {
+    float alpha = 1.0;
+
     // Camera basis
     vec3 forward = normalize(camera_target - camera_position);
     vec3 world_up = vec3(0.0, 1.0, 0.0);
@@ -248,13 +487,24 @@ void fragment() {
 
     bool hitBlackHole = false;
     bool hitDisk = false;
+    bool hitGrid = false;
+    float maxGridStrength = 0.0;
     bool escaped = false;
+
+    // Straight (unbent) ray grid test
+    float straightGridStrength = 0.0;
+    bool straightHitGrid = false;
+    vec3 straightHitPos = vec3(0.0);
+
+    if (show_grid) {
+        straightHitGrid = checkGridIntersectionStraightRay(camera_position, ray_dir, straightGridStrength, straightHitPos);
+    }
 
     // Main integration loop
     for (int i = 0; i < max_steps; i++) {
         // Check if ray hit event horizon
         if (ray.r <= schwarzschild_radius * 1.01) { hitBlackHole = true; break; }
-        
+
         float adaptive_step = getAdaptiveStepSize(ray.r);
         rk4Step(ray, adaptive_step);
 
@@ -272,20 +522,45 @@ void fragment() {
         if (ray.r > escape_radius) { escaped = true; break; }
     }
 
+    // Derive final (bent) sky direction from ray's final position
+    vec3 finalDir = normalize(vec3(ray.x, ray.y, ray.z) - black_hole_position);
+
+
+
     // Apply colors in priority order
     if (hitDisk) {
         // Disk is opaque
     } else if (hitBlackHole) {
         color_out = black_hole_color;
+    // } else if (hitGrid && maxGridStrength > 0.0) {
     } else {
-        // Use final ray direction after bending
-		vec3 finalDir = normalize(vec3(ray.x, ray.y, ray.z) - black_hole_position);
-		float starVal = getStarBrightness(finalDir) * star_brightness;
-		if (starVal > 0.985) {
-	        color_out = mix(color_out, star_color, starVal);
-		}
-    }
-	
+        // background + stars + grid
 
-    COLOR = vec4(color_out, 1.0);
+        // Grid intersection using straight (non-bent) ray
+        if (straightHitGrid) {
+                // We already applied edge fade inside the check function (via getGridEdgeFade(hitPos.xz))
+                float finalGridStrength = straightGridStrength;
+                // Mix background and grid using the final strength
+                color_out = mix(background_color, grid_color, finalGridStrength);
+                alpha = finalGridStrength;
+            } else {
+                color_out = background_color;
+            }
+
+        // color_out = background_color;
+
+        // Stars (procedural)
+        float starVal = getStarBrightness(finalDir) * star_brightness;
+        if (starVal > 1.-star_density) {
+            // additive contribution so very bright stars "bleed" a bit
+            color_out = mix(color_out, star_color, starVal);
+            // color_out += star_color * starVal;
+        }
+
+        // small tonemapping / clamp
+        // color_out = clamp(color_out, vec3(0.0), vec3(1.0));
+    }
+
+
+    COLOR = vec4(color_out, alpha);
 }
