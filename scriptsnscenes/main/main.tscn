@@ -9,6 +9,7 @@
 script = ExtResource("1_j6fwf")
 
 [node name="3DRK4_Att2" parent="." instance=ExtResource("2_ofk34")]
+zoom_speed = 0.35
 
 [node name="UI" type="Control" parent="." node_paths=PackedStringArray("fps_label")]
 layout_mode = 3
