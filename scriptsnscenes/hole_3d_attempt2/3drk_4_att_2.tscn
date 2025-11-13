@@ -55,9 +55,9 @@ shader_parameter/disc_color = Color(1, 0.5, 0.2, 1)
 shader_parameter/disc_thickness = 1000.0
 shader_parameter/star_color = Color(1, 1, 0.7294118, 1)
 shader_parameter/star_brightness = 1.0
-shader_parameter/star_density = 0.07
+shader_parameter/star_density = 0.055
 shader_parameter/star_size_scale = 0.012
-shader_parameter/show_grid = false
+shader_parameter/show_grid = true
 shader_parameter/grid_color = Color(0.5, 0.7, 1, 1)
 shader_parameter/grid_spacing = 10.0
 shader_parameter/grid_line_thickness = 0.8
@@ -65,11 +65,11 @@ shader_parameter/grid_alpha = 1.0
 shader_parameter/grid_range = 60.0
 shader_parameter/grid_warp_offset = 50.84
 shader_parameter/bigstar_center = Vector3(59.6, 6.78, -58.72)
-shader_parameter/bigstar_radius = 15.955
+shader_parameter/bigstar_radius = 16.37
 shader_parameter/bigstar_emission = Color(0.3520907, 0.20642206, 0.054649144, 1)
-shader_parameter/bigstar_surface_brightness = 2.6
+shader_parameter/bigstar_surface_brightness = 2.675
 shader_parameter/bigstar_halo = 1.245
-shader_parameter/viewport_size = Vector2(144, 81)
+shader_parameter/viewport_size = Vector2(288, 162)
 
 [node name="3DRK4_Att2" type="Control" node_paths=PackedStringArray("pause")]
 process_mode = 1
@@ -92,12 +92,12 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 stretch = true
-stretch_shrink = 8
+stretch_shrink = 4
 
 [node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
 disable_3d = true
 handle_input_locally = false
-size = Vector2i(144, 81)
+size = Vector2i(288, 162)
 render_target_update_mode = 4
 
 [node name="ShaderRect" type="ColorRect" parent="SubViewportContainer/SubViewport"]
