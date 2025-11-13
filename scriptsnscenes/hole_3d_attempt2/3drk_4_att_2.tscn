@@ -57,18 +57,18 @@ shader_parameter/star_color = Color(1, 1, 0.7294118, 1)
 shader_parameter/star_brightness = 1.0
 shader_parameter/star_density = 0.07
 shader_parameter/star_size_scale = 0.012
-shader_parameter/show_grid = true
+shader_parameter/show_grid = false
 shader_parameter/grid_color = Color(0.5, 0.7, 1, 1)
 shader_parameter/grid_spacing = 10.0
 shader_parameter/grid_line_thickness = 0.8
 shader_parameter/grid_alpha = 1.0
 shader_parameter/grid_range = 60.0
 shader_parameter/grid_warp_offset = 50.84
-shader_parameter/bigstar_center = Vector3(38.55, 6.78, -39.615)
+shader_parameter/bigstar_center = Vector3(59.6, 6.78, -58.72)
 shader_parameter/bigstar_radius = 15.955
-shader_parameter/bigstar_emission = Color(0.2677015, 0.09606991, 1.2032688e-08, 1)
-shader_parameter/bigstar_surface_brightness = 8.055
-shader_parameter/bigstar_halo = 0.06
+shader_parameter/bigstar_emission = Color(0.3520907, 0.20642206, 0.054649144, 1)
+shader_parameter/bigstar_surface_brightness = 2.6
+shader_parameter/bigstar_halo = 1.245
 shader_parameter/viewport_size = Vector2(144, 81)
 
 [node name="3DRK4_Att2" type="Control" node_paths=PackedStringArray("pause")]

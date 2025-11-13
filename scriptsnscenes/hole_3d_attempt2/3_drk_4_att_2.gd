@@ -20,7 +20,7 @@ func _ready():
 func _input(event):
 	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		yaw -= event.relative.x * rotation_speed 
-		pitch = clamp(pitch - event.relative.y * rotation_speed, -PI/2.+.01, PI/2.+.01)
+		pitch = clamp(pitch - event.relative.y * rotation_speed, -PI/2.+.001, PI/2.-.001)
 		_update_shader_camera()
 	
 	if event is InputEventMouseButton:
