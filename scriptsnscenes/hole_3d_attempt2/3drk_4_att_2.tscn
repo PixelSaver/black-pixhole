@@ -30,6 +30,11 @@ shader_parameter/grid_line_thickness = 2000000000.0
 shader_parameter/grid_alpha = 0.8
 shader_parameter/grid_range = 150000000000.0
 shader_parameter/grid_warp_offset = 30000001000.0
+shader_parameter/bigstar_center = Vector3(0, 50, -200)
+shader_parameter/bigstar_radius = 20.0
+shader_parameter/bigstar_emission = Color(1, 0.9, 0.7, 1)
+shader_parameter/bigstar_surface_brightness = 6.0
+shader_parameter/bigstar_halo = 0.6
 shader_parameter/viewport_size = Vector2(144, 81)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ibl3l"]
@@ -38,8 +43,8 @@ shader_parameter/black_hole_position = Vector3(0, 0, 0)
 shader_parameter/schwarzschild_radius = 10.0
 shader_parameter/black_hole_color = Color(0, 0, 0, 1)
 shader_parameter/background_color = Color(0.18261147, 0.18258706, 0.24762893, 1)
-shader_parameter/max_steps = 7830
-shader_parameter/step_size = 3.085
+shader_parameter/max_steps = 1400
+shader_parameter/step_size = 4.01
 shader_parameter/escape_radius = 10000.0
 shader_parameter/camera_position = Vector3(-24.44, 46.51, 99.385)
 shader_parameter/camera_target = Vector3(0, 0, 0)
@@ -54,11 +59,16 @@ shader_parameter/star_density = 0.07
 shader_parameter/star_size_scale = 0.012
 shader_parameter/show_grid = true
 shader_parameter/grid_color = Color(0.5, 0.7, 1, 1)
-shader_parameter/grid_spacing = 10.635
-shader_parameter/grid_line_thickness = 0.435
+shader_parameter/grid_spacing = 10.0
+shader_parameter/grid_line_thickness = 0.8
 shader_parameter/grid_alpha = 1.0
-shader_parameter/grid_range = 67.37
-shader_parameter/grid_warp_offset = 39.04
+shader_parameter/grid_range = 60.0
+shader_parameter/grid_warp_offset = 50.84
+shader_parameter/bigstar_center = Vector3(38.55, 6.78, -39.615)
+shader_parameter/bigstar_radius = 15.955
+shader_parameter/bigstar_emission = Color(0.2677015, 0.09606991, 1.2032688e-08, 1)
+shader_parameter/bigstar_surface_brightness = 8.055
+shader_parameter/bigstar_halo = 0.06
 shader_parameter/viewport_size = Vector2(144, 81)
 
 [node name="3DRK4_Att2" type="Control" node_paths=PackedStringArray("pause")]

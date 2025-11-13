@@ -35,6 +35,13 @@ uniform float grid_alpha = 0.8;
 uniform float grid_range = 1.5e11; // How far grid extends
 uniform float grid_warp_offset = 3e10; // Offset from C++ code
 
+// ---------- Spherical star (option A: finite sphere) ----------
+uniform vec3 bigstar_center = vec3(0.0, 50.0, -200.0); // world position of star
+uniform float bigstar_radius = 20.0;                 // physical radius (world units)
+uniform vec3 bigstar_emission : source_color = vec3(1.0, 0.9, 0.7);
+uniform float bigstar_surface_brightness = 6.0;      // brightness at surface (tweak)
+uniform float bigstar_halo = 0.6;                    // additive halo factor
+
 uniform vec2 viewport_size = vec2(800.0, 600.0);
 
 const float EPS = 1e-7;
@@ -404,7 +411,29 @@ bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStren
 
     return false;
 }
+// segment from p0 -> p1, returns true when intersects; out t is [0..1] param along segment
+bool intersectSegmentSphere(vec3 p0, vec3 p1, vec3 center, float radius, out float t_hit, out vec3 hitPos) {
+    vec3 d = p1 - p0;
+    vec3 oc = p0 - center;
+    float a = dot(d, d);
+    float b = 2.0 * dot(oc, d);
+    float c = dot(oc, oc) - radius * radius;
+    float disc = b * b - 4.0 * a * c;
+    if (disc < 0.0) return false;
+    float sqrtD = sqrt(disc);
+    float t0 = (-b - sqrtD) / (2.0 * a);
+    float t1 = (-b + sqrtD) / (2.0 * a);
 
+    // choose smallest positive t in [0,1]
+    float t = 1e9;
+    if (t0 >= 0.0 && t0 <= 1.0) t = min(t, t0);
+    if (t1 >= 0.0 && t1 <= 1.0) t = min(t, t1);
+    if (t > 1e8) return false;
+
+    t_hit = t;
+    hitPos = p0 + d * t;
+    return true;
+}
 void fragment() {
     float alpha = 1.0;
 
@@ -439,6 +468,7 @@ void fragment() {
     bool hitBlackHole = false;
     bool hitDisk = false;
     bool hitGrid = false;
+    bool hitStar = false;
     float maxGridStrength = 0.0;
     bool escaped = false;
 
@@ -460,7 +490,37 @@ void fragment() {
         rk4Step(ray, adaptive_step);
 
         vec3 newPos = vec3(ray.x, ray.y, ray.z);
-
+        
+        // --- check finite star sphere intersection ---
+        float t_hit;
+        vec3 hitPos;
+        if (intersectSegmentSphere(prevPos, newPos, bigstar_center, bigstar_radius, t_hit, hitPos)) {
+            // normal at surface
+            vec3 N = normalize(hitPos - bigstar_center);
+            // view direction from hit point back to camera
+            vec3 V = normalize(camera_position - hitPos);
+            // simple limb darkening / spec: bright at center, darker at limb
+            float cosTheta = clamp(dot(N, V), 0.0, 1.0);
+            float surface = pow(cosTheta, 0.5); // tweak exponent for limb profile
+        
+            // surface emission (additive):
+            vec3 surfColor = bigstar_emission * bigstar_surface_brightness * surface;
+        
+            // halo: soft additive glow depending on angle between ray and center
+            // compute angular distance between viewing direction and star center as seen from camera
+            vec3 dirToStarFromCamera = normalize(bigstar_center - camera_position);
+            vec3 currentRayDir = normalize(hitPos - camera_position); // approximate
+            float ang = max(0.0, dot(dirToStarFromCamera, currentRayDir)); // 1 at center
+            float halo = pow(ang, 16.0); // tight halo; tweak exponent
+            vec3 haloColor = bigstar_emission * (bigstar_halo * halo);
+        
+            color_out = surfColor + haloColor;
+            // early out: we hit the star surface -> done
+            hitStar = true;
+            hitDisk = false;
+            hitBlackHole = false;
+            break;
+        }
         // Check disk intersection
         vec3 diskIntersection;
         if (!hitDisk && checkDiskIntersection(prevPos, newPos, diskIntersection)) {
@@ -479,7 +539,7 @@ void fragment() {
 
 
     // Apply colors in priority order
-    if (hitDisk) {
+    if (hitDisk || hitStar) {
         // Disk is opaque
     } else if (hitBlackHole) {
         color_out = black_hole_color;
