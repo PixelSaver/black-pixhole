@@ -358,97 +358,48 @@ bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStren
 
     if (!show_grid) return false;
 
-    // search t in [0, tFar]
     float tNear = 0.0;
-    float tFar = grid_range * 2.; // search slightly beyond grid_range to be safe
+    float tFar = grid_range * 2.;
+    const int samples = 128;
 
-    const int coarseSamples = 128;
-    float tPrev = tNear;
-    vec3 pPrev = origin + dir * tPrev;
-    // skip if outside XZ region initially
-    float yPrev = pPrev.y - calculateWarpedGridY(pPrev.x, pPrev.z);
+    float prevY = origin.y - calculateWarpedGridY(origin.x, origin.z);
+    float prevT = tNear;
 
-    for (int i = 1; i <= coarseSamples; ++i) {
-        float tf = float(i) / float(coarseSamples);
+    for (int i = 1; i <= samples; ++i) {
+        float tf = float(i) / float(samples);
         float t = mix(tNear, tFar, tf);
         vec3 p = origin + dir * t;
 
-        // If this sample is outside XZ bounds, update and continue
-        float distXZ = length(vec2(p.x, p.z));
-        if (distXZ > grid_range || distXZ < schwarzschild_radius * 1.001) {
-            tPrev = t;
-            pPrev = p;
-            yPrev = p.y - calculateWarpedGridY(p.x, p.z);
-            continue;
-        }
+        // Skip points outside radial bounds
+        float distXZ = length(p.xz);
+        if (distXZ > grid_range || distXZ < schwarzschild_radius * 1.001) continue;
 
         float yNow = p.y - calculateWarpedGridY(p.x, p.z);
 
-        // look for a sign change (ray crossing the implicit surface) or very close approach
-        if (yPrev * yNow <= 0.0 || abs(yNow) < 1e-4) {
-            // bracket [tPrev, t] contains the crossing — refine with bisection
-            float ta = tPrev;
-            float tb = t;
-            for (int it = 0; it < 10; ++it) { // 10 iterations -> good precision
-                float tm = 0.5 * (ta + tb);
-                vec3 pm = origin + dir * tm;
-                // keep pm within valid XZ region
-                float pmDist = length(vec2(pm.x, pm.z));
-                if (pmDist > grid_range || pmDist < schwarzschild_radius * 1.001) {
-                    // if mid went outside, move interval away
-                    ta = tm;
-                    continue;
-                }
-                float fm = pm.y - calculateWarpedGridY(pm.x, pm.z);
-                if (abs(fm) < 1e-6) {
-                    ta = tm;
-                    tb = tm;
-                    break;
-                }
-                float fa = (origin + dir * ta).y - calculateWarpedGridY((origin + dir * ta).x, (origin + dir * ta).z);
-                // choose half with sign change or smaller absolute
-                if (fa * fm <= 0.0) {
-                    tb = tm;
-                } else {
-                    ta = tm;
-                }
-            }
+        // Detect a sign change (surface crossing)
+        if (prevY * yNow <= 0.0) {
+            // approximate intersection between prev and current
+            float frac = abs(prevY) / (abs(prevY) + abs(yNow) + 1e-6);
+            vec3 hit = mix(p, origin + dir * prevT, frac);
 
-            float tHit = 0.5 * (ta + tb);
-            vec3 pHit = origin + dir * tHit;
-
-            // Final sanity check: must be inside XZ range
-            float finalDistXZ = length(vec2(pHit.x, pHit.z));
-            if (finalDistXZ > grid_range || finalDistXZ < schwarzschild_radius * 1.001) {
-                // Hit lies outside allowed region -> ignore
-                return false;
-            }
-
-            // Check whether this hit lies on a grid line
+            // Check if this intersection is *on a line*
             float lineStr;
-            if (!isOnGridLine(pHit.x, pHit.z, lineStr)) {
-                return false;
-            }
-
-            // compute edge fade from exact hit point
-            float edgeFade = getGridEdgeFade(pHit.xz);
-
-            // final strength: line strength * global alpha * edge fade
-            float strength = grid_alpha * lineStr * edgeFade;
-
-            if (strength > 0.001) {
-                gridStrength = strength;
-                hitPos = pHit;
-                return true; // first hit only
+            if (isOnGridLine(hit.x, hit.z, lineStr)) {
+                // Fade near edges of grid_range
+                float fade = getGridEdgeFade(hit.xz);
+                gridStrength = grid_alpha * lineStr * fade;
+                hitPos = hit;
+                return true;
             } else {
-                return false;
+                // Not on a visible line → skip and keep searching
+                prevY = yNow;
+                prevT = t;
+                continue;
             }
         }
 
-        // continue walking samples
-        tPrev = t;
-        pPrev = p;
-        yPrev = yNow;
+        prevY = yNow;
+        prevT = t;
     }
 
     return false;
@@ -538,11 +489,10 @@ void fragment() {
 
         // Grid intersection using straight (non-bent) ray
         if (straightHitGrid) {
-                // We already applied edge fade inside the check function (via getGridEdgeFade(hitPos.xz))
+                // We already applied edge fade inside the check function (via getGridEdgeFade(hitPos.xz))i
                 float finalGridStrength = straightGridStrength;
                 // Mix background and grid using the final strength
                 color_out = mix(background_color, grid_color, finalGridStrength);
-                alpha = finalGridStrength;
             } else {
                 color_out = background_color;
             }
