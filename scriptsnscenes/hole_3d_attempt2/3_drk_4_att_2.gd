@@ -13,15 +13,15 @@ var yaw := 0.0
 var pitch := 0.0
 var rotation_speed := 0.01
 var fov := 60.0
-var cam_t : Tween
 
 func _ready():
 	Global.rk4_att2 = self
 	pause.process_mode = Node.PROCESS_MODE_PAUSABLE
 	yaw = .5
 	pitch = -.3
-	cam_t = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUINT)
 	_update_shader_camera()
+	await get_tree().process_frame
+	Global.runtime_inspector.inspect(self)
 
 func _input(event):
 	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
@@ -45,7 +45,7 @@ func _input(event):
 
 func _process(delta):
 	# Smoothly interpolate distance toward target_distance
-	distance = clamp(lerp(distance, target_distance, log(zoom_speed*delta*distance)), min_distance, max_distance)
+	distance = clamp(lerp(distance, target_distance, zoom_speed*delta), min_distance, max_distance)
 	_update_shader_camera()
 
 func _update_shader_camera():
