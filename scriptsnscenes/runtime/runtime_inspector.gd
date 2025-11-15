@@ -5,6 +5,7 @@ class_name RuntimeInspector
 
 @export var show_private_properties := false
 @export var compact_mode := false
+@export var property_label_min_x: int = 200
 
 var _current_target: Object = null
 var _property_controls: Dictionary = {}
@@ -84,7 +85,7 @@ func _create_property_control(prop: Dictionary):
 	# Property label
 	var label = Label.new()
 	label.text = prop_name.capitalize()
-	label.custom_minimum_size.x = 80
+	label.custom_minimum_size.x = property_label_min_x
 	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	label.clip_text = true
 	container.add_child(label)

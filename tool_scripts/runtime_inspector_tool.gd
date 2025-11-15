@@ -10,6 +10,7 @@ var anchor_right: float = 0.3
 var anchor_bottom: float = 1.0
 var panel_min_width: int = 280
 var panel_min_height: int = 400
+var property_label_min_x: int = 130
 var show_private_properties: bool = false
 
 func _run():
@@ -132,7 +133,7 @@ func _create_property_control(target: Object, prop: Dictionary, container: VBoxC
 	# Property label
 	var label = Label.new()
 	label.text = prop_name.capitalize()
-	label.custom_minimum_size.x = 80
+	label.custom_minimum_size.x = property_label_min_x
 	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	label.clip_text = true
 	row.add_child(label)
