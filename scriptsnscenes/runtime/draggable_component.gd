@@ -58,13 +58,17 @@ func _gui_input(event):
 				_last_pos_x = event.position.x
 				#grab_focus()
 			else:
+				if not _dragging and allow_click_through:
+					# It was a click, not a drag
+					click_detected.emit()
 				_pressed = false
 				_dragging = false
 
 	# Mouse motion -> handle dragging after threshold
 	if event is InputEventMouseMotion and _pressed:
 		show()
-		var dx: float = event.position.x - _start_x
+		#var dx: float = event.position.x - _start_x
+		var dx: float = event.relative.x
 		
 		if not _dragging:
 			if abs(dx) >= drag_threshold:
