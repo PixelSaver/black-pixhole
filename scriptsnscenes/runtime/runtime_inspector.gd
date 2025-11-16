@@ -1,11 +1,31 @@
 extends PanelContainer
-class_name RuntimeInspector
 ## Runtime Inspector - Automatically generates UI for @export variables
 ## Usage: Add this to your scene, then call inspect(your_node)
+class_name RuntimeInspector
 
 @export var show_private_properties := false
 @export var compact_mode := false
-@export var property_label_min_x: int = 200
+
+@export var inspector_min_width: int = 280
+@export var inspector_min_height: int = 400
+@export var value_column_max_width: int = 140
+
+
+# @export var margin_left: int = 6
+# @export var margin_right: int = 6
+# @export var margin_top: int = 6
+# @export var margin_bottom: int = 6
+
+@export var property_label_min_x: int = 150
+@export var spinbox_min_x: int = 100
+@export var vector_axis_label_width: int = 12
+@export var vector_axis_spin_min_x: int = 80
+
+@export var color_picker_width: int = 60
+@export var color_picker_height: int = 24
+
+# Draggable speed modifier
+@export var drag_speed_multiplier: float = 20.0
 
 var _current_target: Object = null
 var _property_controls: Dictionary = {}
@@ -17,28 +37,26 @@ func _ready():
 	_setup_ui()
 
 func _setup_ui():
-	custom_minimum_size = Vector2(280, 400)
+	custom_minimum_size = Vector2(inspector_min_width, inspector_min_height)
 	
 	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 6)
-	margin.add_theme_constant_override("margin_right", 6)
-	margin.add_theme_constant_override("margin_top", 6)
-	margin.add_theme_constant_override("margin_bottom", 6)
+	# margin.add_theme_constant_override("margin_left", margin_left)
+	# margin.add_theme_constant_override("margin_right", margin_right)
+	# margin.add_theme_constant_override("margin_top", margin_top)
+	# margin.add_theme_constant_override("margin_bottom", margin_bottom)
 	add_child(margin)
 	
 	var vbox = VBoxContainer.new()
 	margin.add_child(vbox)
 	
-	# Title
-	var title = Label.new()
+	var title = RichTextLabel.new()
 	title.text = "Inspector"
-	title.add_theme_font_size_override("font_size", 14)
+	# title.add_theme_font_size_override("font_size", 14)
 	vbox.add_child(title)
 	
 	var separator = HSeparator.new()
 	vbox.add_child(separator)
 	
-	# Scroll container for properties
 	_scroll_container = ScrollContainer.new()
 	_scroll_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -48,7 +66,6 @@ func _setup_ui():
 	_property_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll_container.add_child(_property_container)
 
-## Inspect an object and generate UI for its exported properties
 func inspect(target: Object):
 	_current_target = target
 	_clear_properties()
@@ -57,17 +74,21 @@ func inspect(target: Object):
 		return
 	
 	var properties = target.get_property_list()
+	var property_names = []
 	
 	for prop in properties:
-		# Only show exported properties (usage flag 4102 includes PROPERTY_USAGE_SCRIPT_VARIABLE | PROPERTY_USAGE_EDITOR)
 		if prop.usage & PROPERTY_USAGE_EDITOR == 0:
 			continue
+		
+		if not (prop.usage & PROPERTY_USAGE_SCRIPT_VARIABLE):
+			continue
 			
-		# Skip private properties unless enabled
 		if not show_private_properties and prop.name.begins_with("_"):
 			continue
 		
+		property_names.append(prop.name)
 		_create_property_control(prop)
+	print("Inspecting this property list: %s" % str(property_names))
 
 func _clear_properties():
 	for child in _property_container.get_children():
@@ -82,15 +103,14 @@ func _create_property_control(prop: Dictionary):
 	var container = HBoxContainer.new()
 	_property_container.add_child(container)
 	
-	# Property label
 	var label = Label.new()
 	label.text = prop_name.capitalize()
 	label.custom_minimum_size.x = property_label_min_x
+	label.add_theme_font_size_override("font_size", 15)
 	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	label.clip_text = true
 	container.add_child(label)
 	
-	# Create appropriate control based on type
 	var control = _create_control_for_type(prop_type, current_value, prop)
 	if control:
 		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -127,7 +147,6 @@ func _create_bool_control(value: bool, prop_name: String) -> CheckButton:
 	return check
 
 func _create_int_control(value: int, prop: Dictionary) -> Control:
-	# Check for range hint
 	if prop.has("hint") and prop.hint == PROPERTY_HINT_RANGE:
 		var hint_string = prop.hint_string
 		var parts = hint_string.split(",")
@@ -142,7 +161,7 @@ func _create_int_control(value: int, prop: Dictionary) -> Control:
 			
 			var value_label = Label.new()
 			value_label.text = str(value)
-			value_label.custom_minimum_size.x = 40
+			value_label.custom_minimum_size.x = spinbox_min_x
 			
 			var slider = HSlider.new()
 			slider.min_value = min_val
@@ -159,16 +178,15 @@ func _create_int_control(value: int, prop: Dictionary) -> Control:
 			
 			return hbox
 	
-	# Default spinbox
 	var spin = SpinBox.new()
 	spin.value = value
 	spin.allow_greater = true
 	spin.allow_lesser = true
 	spin.value_changed.connect(func(v): _on_property_changed(prop.name, int(v)))
+	_add_draggable_to_spinbox(spin, prop.name)
 	return spin
 
 func _create_float_control(value: float, prop: Dictionary) -> Control:
-	# Check for range hint
 	if prop.has("hint") and prop.hint == PROPERTY_HINT_RANGE:
 		var hint_string = prop.hint_string
 		var parts = hint_string.split(",")
@@ -183,7 +201,7 @@ func _create_float_control(value: float, prop: Dictionary) -> Control:
 			
 			var value_label = Label.new()
 			value_label.text = "%.2f" % value
-			value_label.custom_minimum_size.x = 50
+			value_label.custom_minimum_size.x = spinbox_min_x
 			
 			var slider = HSlider.new()
 			slider.min_value = min_val
@@ -200,13 +218,14 @@ func _create_float_control(value: float, prop: Dictionary) -> Control:
 			
 			return hbox
 	
-	# Default spinbox
 	var spin = SpinBox.new()
 	spin.step = 0.01
 	spin.value = value
 	spin.allow_greater = true
 	spin.allow_lesser = true
+	spin.mouse_filter = Control.MOUSE_FILTER_PASS
 	spin.value_changed.connect(func(v): _on_property_changed(prop.name, v))
+	_add_draggable_to_spinbox(spin, prop.name)
 	return spin
 
 func _create_string_control(value: String, prop_name: String) -> LineEdit:
@@ -221,7 +240,7 @@ func _create_vector2_control(value: Vector2, prop_name: String) -> HBoxContainer
 	
 	var x_label = Label.new()
 	x_label.text = "X"
-	x_label.custom_minimum_size.x = 12
+	x_label.custom_minimum_size.x = spinbox_min_x / 2
 	hbox.add_child(x_label)
 	
 	var x_spin = SpinBox.new()
@@ -229,16 +248,19 @@ func _create_vector2_control(value: Vector2, prop_name: String) -> HBoxContainer
 	x_spin.value = value.x
 	x_spin.allow_greater = true
 	x_spin.allow_lesser = true
-	x_spin.custom_minimum_size.x = 60
+	x_spin.custom_minimum_size.x = spinbox_min_x / 2
 	x_spin.value_changed.connect(func(v): 
 		var vec = _current_target.get(prop_name)
 		_on_property_changed(prop_name, Vector2(v, vec.y))
+	)
+	_add_draggable_to_spinbox(x_spin, prop_name, func(delta):
+		x_spin.value += delta
 	)
 	hbox.add_child(x_spin)
 	
 	var y_label = Label.new()
 	y_label.text = "Y"
-	y_label.custom_minimum_size.x = 12
+	y_label.custom_minimum_size.x = spinbox_min_x / 2
 	hbox.add_child(y_label)
 	
 	var y_spin = SpinBox.new()
@@ -246,10 +268,13 @@ func _create_vector2_control(value: Vector2, prop_name: String) -> HBoxContainer
 	y_spin.value = value.y
 	y_spin.allow_greater = true
 	y_spin.allow_lesser = true
-	y_spin.custom_minimum_size.x = 60
+	y_spin.custom_minimum_size.x = spinbox_min_x / 2
 	y_spin.value_changed.connect(func(v): 
 		var vec = _current_target.get(prop_name)
 		_on_property_changed(prop_name, Vector2(vec.x, v))
+	)
+	_add_draggable_to_spinbox(y_spin, prop_name, func(delta):
+		y_spin.value += delta
 	)
 	hbox.add_child(y_spin)
 	
@@ -258,7 +283,6 @@ func _create_vector2_control(value: Vector2, prop_name: String) -> HBoxContainer
 func _create_vector3_control(value: Vector3, prop_name: String) -> VBoxContainer:
 	var vbox = VBoxContainer.new()
 	
-	# Create compact rows for each axis
 	for i in range(3):
 		var hbox = HBoxContainer.new()
 		var axis_name = ["X", "Y", "Z"][i]
@@ -266,33 +290,36 @@ func _create_vector3_control(value: Vector3, prop_name: String) -> VBoxContainer
 		
 		var label = Label.new()
 		label.text = axis_name
-		label.custom_minimum_size.x = 12
+		label.custom_minimum_size.x = vector_axis_label_width
 		hbox.add_child(label)
 		
 		var spin = SpinBox.new()
 		spin.step = 0.01
 		spin.allow_greater = true
 		spin.allow_lesser = true
-		spin.custom_minimum_size.x = 80
+		spin.custom_minimum_size.x = vector_axis_spin_min_x
 		spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		spin.value = axis_value
 		
-		match i:
-			0:
-				spin.value_changed.connect(func(v): 
-					var vec = _current_target.get(prop_name)
-					_on_property_changed(prop_name, Vector3(v, vec.y, vec.z))
-				)
-			1:
-				spin.value_changed.connect(func(v): 
-					var vec = _current_target.get(prop_name)
-					_on_property_changed(prop_name, Vector3(vec.x, v, vec.z))
-				)
-			2:
-				spin.value_changed.connect(func(v): 
-					var vec = _current_target.get(prop_name)
-					_on_property_changed(prop_name, Vector3(vec.x, vec.y, v))
-				)
+		if i == 0:
+			spin.value_changed.connect(func(v):
+				var vec = _current_target.get(prop_name)
+				_on_property_changed(prop_name, Vector3(v, vec.y, vec.z))
+			)
+		elif i == 1:
+			spin.value_changed.connect(func(v):
+				var vec = _current_target.get(prop_name)
+				_on_property_changed(prop_name, Vector3(vec.x, v, vec.z))
+			)
+		else:
+			spin.value_changed.connect(func(v):
+				var vec = _current_target.get(prop_name)
+				_on_property_changed(prop_name, Vector3(vec.x, vec.y, v))
+			)
+		
+		_add_draggable_to_spinbox(spin, prop_name, func(delta):
+			spin.value += delta
+		)
 		
 		hbox.add_child(spin)
 		vbox.add_child(hbox)
@@ -303,16 +330,17 @@ func _create_color_control(value: Color, prop_name: String) -> ColorPickerButton
 	var color_picker = ColorPickerButton.new()
 	color_picker.color = value
 	color_picker.edit_alpha = true
-	color_picker.custom_minimum_size = Vector2(60, 24)
+	color_picker.custom_minimum_size = Vector2(color_picker_width, color_picker_height)
 	color_picker.color_changed.connect(func(color): _on_property_changed(prop_name, color))
 	return color_picker
 
-func _create_object_control(value, prop_name: String) -> Label:
-	var label = Label.new()
-	if value:
-		label.text = str(value)
-	else:
-		label.text = "<null>"
+func _create_object_control(value, prop_name: String) -> RichTextLabel:
+	var label = RichTextLabel.new()
+	# label.fit_content = true
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.scroll_active = false
+	label.text = str(value) if value else "<null>"
 	label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	return label
 
@@ -325,3 +353,23 @@ func _create_generic_control(value, prop_name: String) -> Label:
 func _on_property_changed(prop_name: String, new_value):
 	if _current_target:
 		_current_target.set(prop_name, new_value)
+
+func _add_draggable_to_spinbox(spin: SpinBox, prop_name: String, custom_drag_handler: Callable = Callable()) -> void:
+	var draggable = DraggableComponent.new()
+	draggable.name = "DragOverlay"
+	draggable.base_drag_speed = spin.step * drag_speed_multiplier
+	spin.add_child(draggable)
+	
+	if custom_drag_handler.is_valid():
+		draggable.drag_changed.connect(custom_drag_handler)
+	else:
+		draggable.drag_changed.connect(func(delta):
+			var new_val = spin.value + delta
+			if spin.has_method("get_min"):
+				new_val = clamp(new_val, spin.min_value, spin.max_value)
+			spin.value = new_val
+		)
+	
+	draggable.click_detected.connect(func():
+		spin.grab_focus()
+	)

@@ -23,7 +23,7 @@ func _ready():
 	await get_tree().process_frame
 	Global.runtime_inspector.inspect(self)
 
-func _input(event):
+func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		yaw -= event.relative.x * rotation_speed 
 		pitch = clamp(pitch - event.relative.y * rotation_speed, -PI/2.+.001, PI/2.-.001)

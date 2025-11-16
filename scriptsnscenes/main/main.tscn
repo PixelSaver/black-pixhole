@@ -9,8 +9,17 @@
 [node name="Main" type="CanvasLayer"]
 script = ExtResource("1_j6fwf")
 
-[node name="3DRK4_Att2" parent="." instance=ExtResource("2_ofk34")]
+[node name="3DRK4_Att2" parent="." node_paths=PackedStringArray("pause") instance=ExtResource("2_ofk34")]
+focus_mode = 1
+pause = NodePath("SubViewportContainer/SubViewport/ShaderRect")
 zoom_speed = 10.0
+
+[node name="SubViewportContainer" parent="3DRK4_Att2" index="0"]
+mouse_filter = 2
+
+[node name="ShaderRect" parent="3DRK4_Att2/SubViewportContainer/SubViewport" index="0"]
+process_mode = 1
+mouse_filter = 2
 
 [node name="UI" type="Control" parent="." node_paths=PackedStringArray("fps_label")]
 layout_mode = 3
@@ -19,6 +28,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme = ExtResource("2_kxkkf")
 script = ExtResource("4_uh2b8")
 fps_label = NodePath("FPSLabel")
@@ -27,9 +37,14 @@ fps_label = NodePath("FPSLabel")
 layout_mode = 0
 offset_right = 210.0
 offset_bottom = 123.0
+mouse_filter = 2
 fit_content = true
 
 [node name="RuntimeInspector" parent="UI" instance=ExtResource("5_uu8of")]
 layout_mode = 1
+anchor_left = 0.75
+mouse_filter = 2
+inspector_min_height = 648
+property_label_min_x = 100
 
 [editable path="3DRK4_Att2"]
