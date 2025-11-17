@@ -68,14 +68,20 @@ Might be big, so click to reveal!
   <img src="media/img1.png" alt="Screenshot of the black hole lensing the star with a grid">
 </details>
 
+<details>
+  <summary><strong>Controls</strong></summary>
+  <img src="media/controls.png" alt="Screenshot of the added simulation controls">
+</details>
+
 > [!TIP]
-> Scroll! Look around! Have fun! Not a lot happens sooo...
+> Scroll! Look around! Have fun! Change the values!!!
+
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Built With
 
-* [![Godot][Godot 4.4]][Godot-url]
+* [Godot](https://godotengine.org)
 <!--
 * [![Next][Next.js]][Next-url]
 * [![React][React.js]][React-url]
@@ -116,6 +122,8 @@ If you still insist on building this unoptimized mess, go ahead. Oh, but the rel
   - [X] Put a grid under it to show a point of non-moving
 - [X] Make it interactible, move the camera around using mouse position
   - [ ] Edit the simulation yourself using the access to the simulator
+### Notes
+A few of the editor values don't work. Maybe will fix later, but the disk color doesn't work, the big star follows the black hole position, the color picker is rather hard to see text, the camera fov doesn't change anything, and all of the smaller star stuff doesn't work as of now. Sorry...
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
