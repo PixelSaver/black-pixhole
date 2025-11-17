@@ -54,9 +54,10 @@ Built for Siege Week 10, for the 'Space' theme. As space as it gets, right? This
 A black hole simulation to rival Interstellar!!! No, its a realtime black hole raytracer with an accretion disk, a star, and a grid to show the bending of spacetime. May your computer live to see another day.
 * Left click to drag camera around black hole
 * Scroll to zoom around the black hole
+* Edit the parameters of the shader by yourself! Click and drag or edit the values directly
 
 ### What do I take out of this?
-Math. Physics. Fragment shaders. I hate that I had to have such long conversations with ai to understand any of this... But I mostly understand it now?? Also how to work with fragment shaders! Fun!
+Math. Physics. Fragment shaders. I hate that I had to have such long conversations with ai to understand any of this... But I mostly understand it now?? Also how to work with fragment shaders! Fun! Also, I finally made a simulation editor, which makes making simulators much easier... :)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -114,6 +115,7 @@ If you still insist on building this unoptimized mess, go ahead. Oh, but the rel
   - [ ] Post processing (bloom etc)
   - [X] Put a grid under it to show a point of non-moving
 - [X] Make it interactible, move the camera around using mouse position
+  - [ ] Edit the simulation yourself using the access to the simulator
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
