@@ -117,6 +117,7 @@ func _create_property_control(prop: Dictionary):
 		_property_controls[prop_name] = control
 
 func _debug_log_control_sizes(control: Control, label: String):
+	return
 	await get_tree().process_frame  # wait for layout
 	var min_size = control.get_combined_minimum_size()
 	var actual_size = control.size

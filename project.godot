@@ -21,7 +21,10 @@ Global="*res://scriptsnscenes/global.gd"
 
 [display]
 
+window/size/viewport_width=1728
+window/size/viewport_height=972
 window/stretch/mode="canvas_items"
+window/stretch/scale=1.5
 
 [editor_plugins]
 

@@ -123,7 +123,7 @@ const PARAM_MAP = [
 func _ready():
 	if not target:
 		target = get_parent() as CanvasItem
-	
+
 	if target and target.material is ShaderMaterial:
 		_material = target.material
 		_read_existing_parameters()
@@ -131,7 +131,7 @@ func _ready():
 		_initialized = true
 	else:
 		push_error("BlackHoleShaderController: No valid ShaderMaterial found")
-		
+
 ## Read current shader parameters into exported properties
 func _read_existing_parameters():
 	if not _material:
@@ -143,6 +143,8 @@ func _read_existing_parameters():
 		var is_color = param_info[2]
 
 		var value = _material.get_shader_parameter(shader_name)
+		print("Reading %s: %s (type: %s)" % [shader_name, value, type_string(typeof(value))])
+
 		if value != null:
 			if is_color:
 				if value is Vector3:
@@ -151,7 +153,9 @@ func _read_existing_parameters():
 					set(property_name, value)
 			else:
 				set(property_name, value)
-				
+		else:
+			print_debug("Value is null, %s" % property_name)
+
 ## Update a single shader parameter
 func _update_param(param_name: String, value):
 	if not _material or not _initialized:

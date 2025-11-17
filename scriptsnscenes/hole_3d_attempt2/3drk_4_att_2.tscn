@@ -18,7 +18,8 @@ shader_parameter/camera_target = Vector3(0, 0, 1)
 shader_parameter/camera_fov = 60.0
 shader_parameter/disc_inner_radius = 12.0
 shader_parameter/disc_outer_radius = 25.0
-shader_parameter/disc_color = Color(0.56936985, 0.2746202, 9.62615e-08, 1)
+shader_parameter/disc_inner_color = Color(1, 0.95, 0, 1)
+shader_parameter/disc_outer_color = Color(1, 0.3, 0, 1)
 shader_parameter/disc_thickness = 0.5
 shader_parameter/star_color = Color(1, 1, 1, 1)
 shader_parameter/star_brightness = 1.0
@@ -52,7 +53,8 @@ shader_parameter/camera_target = Vector3(0, 0, 0)
 shader_parameter/camera_fov = 60.0
 shader_parameter/disc_inner_radius = 26.12
 shader_parameter/disc_outer_radius = 36.81
-shader_parameter/disc_color = Color(1, 0.5, 0.2, 1)
+shader_parameter/disc_inner_color = Color(1, 0.9490196, 0.8, 1)
+shader_parameter/disc_outer_color = Color(1, 0.3019608, 0.101960786, 1)
 shader_parameter/disc_thickness = 1000.0
 shader_parameter/star_color = Color(1, 1, 0.7294118, 1)
 shader_parameter/star_brightness = 1.0
@@ -99,7 +101,7 @@ stretch_shrink = 4
 [node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
 disable_3d = true
 handle_input_locally = false
-size = Vector2i(288, 162)
+size = Vector2i(432, 243)
 render_target_update_mode = 4
 
 [node name="ShaderRect" type="ColorRect" parent="SubViewportContainer/SubViewport"]
