@@ -10,12 +10,6 @@ class_name RuntimeInspector
 @export var inspector_min_height: int = 400
 @export var value_column_max_width: int = 140
 
-
-# @export var margin_left: int = 6
-# @export var margin_right: int = 6
-# @export var margin_top: int = 6
-# @export var margin_bottom: int = 6
-
 @export var property_label_min_x: int = 150
 @export var spinbox_min_x: int = 100
 @export var vector_axis_label_width: int = 12
@@ -26,6 +20,10 @@ class_name RuntimeInspector
 
 # Draggable speed modifier
 @export var drag_speed_multiplier: float = 20.0
+
+# SpinBox range limits (use large finite values instead of INF)
+const SPINBOX_MIN = -1e10
+const SPINBOX_MAX = 1e10
 
 var _current_target: Object = null
 var _property_controls: Dictionary = {}
@@ -40,10 +38,6 @@ func _setup_ui():
 	custom_minimum_size = Vector2(inspector_min_width, inspector_min_height)
 	
 	var margin = MarginContainer.new()
-	# margin.add_theme_constant_override("margin_left", margin_left)
-	# margin.add_theme_constant_override("margin_right", margin_right)
-	# margin.add_theme_constant_override("margin_top", margin_top)
-	# margin.add_theme_constant_override("margin_bottom", margin_bottom)
 	add_child(margin)
 	
 	var vbox = VBoxContainer.new()
@@ -51,7 +45,6 @@ func _setup_ui():
 	
 	var title = RichTextLabel.new()
 	title.text = "Inspector"
-	# title.add_theme_font_size_override("font_size", 14)
 	vbox.add_child(title)
 	
 	var separator = HSeparator.new()
@@ -179,6 +172,8 @@ func _create_int_control(value: int, prop: Dictionary) -> Control:
 			return hbox
 	
 	var spin = SpinBox.new()
+	spin.min_value = SPINBOX_MIN
+	spin.max_value = SPINBOX_MAX
 	spin.value = value
 	spin.allow_greater = true
 	spin.allow_lesser = true
@@ -219,6 +214,8 @@ func _create_float_control(value: float, prop: Dictionary) -> Control:
 			return hbox
 	
 	var spin = SpinBox.new()
+	spin.min_value = SPINBOX_MIN
+	spin.max_value = SPINBOX_MAX
 	spin.step = 0.01
 	spin.value = value
 	spin.allow_greater = true
@@ -244,6 +241,8 @@ func _create_vector2_control(value: Vector2, prop_name: String) -> HBoxContainer
 	hbox.add_child(x_label)
 	
 	var x_spin = SpinBox.new()
+	x_spin.min_value = SPINBOX_MIN
+	x_spin.max_value = SPINBOX_MAX
 	x_spin.step = 0.01
 	x_spin.value = value.x
 	x_spin.allow_greater = true
@@ -264,6 +263,8 @@ func _create_vector2_control(value: Vector2, prop_name: String) -> HBoxContainer
 	hbox.add_child(y_label)
 	
 	var y_spin = SpinBox.new()
+	y_spin.min_value = SPINBOX_MIN
+	y_spin.max_value = SPINBOX_MAX
 	y_spin.step = 0.01
 	y_spin.value = value.y
 	y_spin.allow_greater = true
@@ -294,6 +295,8 @@ func _create_vector3_control(value: Vector3, prop_name: String) -> VBoxContainer
 		hbox.add_child(label)
 		
 		var spin = SpinBox.new()
+		spin.min_value = SPINBOX_MIN
+		spin.max_value = SPINBOX_MAX
 		spin.step = 0.01
 		spin.allow_greater = true
 		spin.allow_lesser = true
@@ -336,7 +339,6 @@ func _create_color_control(value: Color, prop_name: String) -> ColorPickerButton
 
 func _create_object_control(value, prop_name: String) -> RichTextLabel:
 	var label = RichTextLabel.new()
-	# label.fit_content = true
 	label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.scroll_active = false
@@ -364,10 +366,7 @@ func _add_draggable_to_spinbox(spin: SpinBox, prop_name: String, custom_drag_han
 		draggable.drag_changed.connect(custom_drag_handler)
 	else:
 		draggable.drag_changed.connect(func(delta):
-			var new_val = spin.value + delta
-			if spin.has_method("get_min"):
-				new_val = clamp(new_val, spin.min_value, spin.max_value)
-			spin.value = new_val
+			spin.value += delta  # No clamping needed - min/max are already INF
 		)
 	
 	draggable.click_detected.connect(func():
