@@ -20,7 +20,7 @@ class_name ShaderController
 	set(v): max_steps = v; _update_param("max_steps", v)
 @export_range(0.1, 10.0) var step_size: float = 0.0:
 	set(v): step_size = v; _update_param("step_size", v)
-@export_range(0.1, 100.0) var escape_radius: float = 0.0:
+@export_range(1e3, 1e5) var escape_radius: float = 0.0:
 	set(v): escape_radius = v; _update_param("escape_radius", v)
 
 @export_group("Camera")
@@ -54,13 +54,13 @@ class_name ShaderController
 	set(v): show_grid = v; _update_param("show_grid", v)
 @export var grid_color: Color = Color.WHITE:
 	set(v): grid_color = v; _update_param("grid_color", _color_to_vec3(v))
-@export_range(1e8, 1e12) var grid_spacing: float = 0.0:
+@export_range(1, 1e3) var grid_spacing: float = 0.0:
 	set(v): grid_spacing = v; _update_param("grid_spacing", v)
 @export_range(0.1, 10.0) var grid_line_thickness: float = 0.0:
 	set(v): grid_line_thickness = v; _update_param("grid_line_thickness", v)
 @export_range(0.0, 1.0) var grid_alpha: float = 0.0:
 	set(v): grid_alpha = v; _update_param("grid_alpha", v)
-@export_range(1e8, 1e12) var grid_range: float = 0.0:
+@export_range(10, 1e3) var grid_range: float = 0.0:
 	set(v): grid_range = v; _update_param("grid_range", v)
 @export_range(0.0, 100.0) var grid_warp_offset: float = 0.0:
 	set(v): grid_warp_offset = v; _update_param("grid_warp_offset", v)
@@ -136,19 +136,22 @@ func _ready():
 func _read_existing_parameters():
 	if not _material:
 		return
-	
+
 	for param_info in PARAM_MAP:
 		var shader_name = param_info[0]
 		var property_name = param_info[1]
 		var is_color = param_info[2]
-		
+
 		var value = _material.get_shader_parameter(shader_name)
 		if value != null:
-			if is_color and value is Vector3:
-				# Convert Vec3 back to Color
-				set(property_name, Color(value.x, value.y, value.z))
+			if is_color:
+				if value is Vector3:
+					set(property_name, Color(value.x, value.y, value.z))
+				elif value is Color:
+					set(property_name, value)
 			else:
 				set(property_name, value)
+				
 ## Update a single shader parameter
 func _update_param(param_name: String, value):
 	if not _material or not _initialized:

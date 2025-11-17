@@ -17,8 +17,8 @@ uniform float camera_fov = 60.0;
 // ---------- Accretion Disc Params --------
 uniform float disc_inner_radius = 2.2;
 uniform float disc_outer_radius = 5.2;
-uniform vec3 disc_inner_color : source_color = vec3(1.0, 0.95, 0.8);
-uniform vec3 disc_outer_color : source_color = vec3(1.0, 0.3, 0.1);
+uniform vec3 disc_inner_color : source_color = vec3(1.0, 0.95, 0.0);
+uniform vec3 disc_outer_color : source_color = vec3(1.0, 0.3, 0.0);
 uniform float disc_thickness = 1.;
 
 // -------- Star params ---------

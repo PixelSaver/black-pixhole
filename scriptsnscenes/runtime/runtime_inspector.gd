@@ -36,25 +36,25 @@ func _ready():
 
 func _setup_ui():
 	custom_minimum_size = Vector2(inspector_min_width, inspector_min_height)
-	
+
 	var margin = MarginContainer.new()
 	add_child(margin)
-	
+
 	var vbox = VBoxContainer.new()
 	margin.add_child(vbox)
-	
+
 	var title = RichTextLabel.new()
 	title.text = "Inspector"
 	vbox.add_child(title)
-	
+
 	var separator = HSeparator.new()
 	vbox.add_child(separator)
-	
+
 	_scroll_container = ScrollContainer.new()
 	_scroll_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	vbox.add_child(_scroll_container)
-	
+
 	_property_container = VBoxContainer.new()
 	_property_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_scroll_container.add_child(_property_container)
@@ -62,26 +62,26 @@ func _setup_ui():
 func inspect(target: Object):
 	_current_target = target
 	_clear_properties()
-	
+
 	if target == null:
 		return
-	
+
 	var properties = target.get_property_list()
 	var property_names = []
-	
+
 	for prop in properties:
 		if prop.usage & PROPERTY_USAGE_EDITOR == 0:
 			continue
-		
+
 		if not (prop.usage & PROPERTY_USAGE_SCRIPT_VARIABLE):
 			continue
-			
+
 		if not show_private_properties and prop.name.begins_with("_"):
 			continue
-			
+
 		if prop.name == "target":
 			continue
-		
+
 		property_names.append(prop.name)
 		_create_property_control(prop)
 	print("Inspecting this property list: %s" % str(property_names))
@@ -95,10 +95,11 @@ func _create_property_control(prop: Dictionary):
 	var prop_name = prop.name
 	var prop_type = prop.type
 	var current_value = _current_target.get(prop_name)
-	
+
 	var container = HBoxContainer.new()
+	container.size_flags_horizontal = Control.SIZE_FILL
 	_property_container.add_child(container)
-	
+
 	var label = Label.new()
 	label.text = prop_name.capitalize()
 	label.custom_minimum_size.x = property_label_min_x
@@ -106,12 +107,21 @@ func _create_property_control(prop: Dictionary):
 	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	label.clip_text = true
 	container.add_child(label)
-	
+
 	var control = _create_control_for_type(prop_type, current_value, prop)
 	if control:
 		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		container.add_child(control)
+		control.custom_minimum_size.x = 0
+		_debug_log_control_sizes(control, prop_name)
 		_property_controls[prop_name] = control
+
+func _debug_log_control_sizes(control: Control, label: String):
+	await get_tree().process_frame  # wait for layout
+	var min_size = control.get_combined_minimum_size()
+	var actual_size = control.size
+	print("[%s] min_size=%s actual_size=%s type=%s" %
+		[label, min_size, actual_size, control])
 
 func _create_control_for_type(type: int, value, prop: Dictionary):
 	match type:
@@ -152,28 +162,29 @@ func _create_int_control(value: int, prop: Dictionary) -> Control:
 			var step = 1.0
 			if parts.size() >= 3:
 				step = parts[2].to_float()
-			
+
 			var hbox = HBoxContainer.new()
-			
+
 			var value_label = Label.new()
 			value_label.text = str(value)
 			value_label.custom_minimum_size.x = spinbox_min_x
-			
+
 			var slider = HSlider.new()
 			slider.min_value = min_val
 			slider.max_value = max_val
 			slider.step = step
 			slider.value = value
+			slider.custom_minimum_size.x = 0
 			slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			slider.value_changed.connect(func(v): 
+			slider.value_changed.connect(func(v):
 				_on_property_changed(prop.name, int(v))
 				value_label.text = str(int(v))
 			)
 			hbox.add_child(slider)
 			hbox.add_child(value_label)
-			
+
 			return hbox
-	
+
 	var spin = SpinBox.new()
 	spin.min_value = SPINBOX_MIN
 	spin.max_value = SPINBOX_MAX
@@ -194,28 +205,30 @@ func _create_float_control(value: float, prop: Dictionary) -> Control:
 			var step = 0.01
 			if parts.size() >= 3:
 				step = parts[2].to_float()
-			
+
 			var hbox = HBoxContainer.new()
-			
+
 			var value_label = Label.new()
 			value_label.text = "%.2f" % value
 			value_label.custom_minimum_size.x = spinbox_min_x
-			
+			value_label.size_flags_horizontal = Control.SIZE_SHRINK_END
+
+
 			var slider = HSlider.new()
 			slider.min_value = min_val
 			slider.max_value = max_val
 			slider.step = step
 			slider.value = value
 			slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			slider.value_changed.connect(func(v): 
+			slider.value_changed.connect(func(v):
 				_on_property_changed(prop.name, v)
 				value_label.text = "%.2f" % v
 			)
 			hbox.add_child(slider)
 			hbox.add_child(value_label)
-			
+
 			return hbox
-	
+
 	var spin = SpinBox.new()
 	spin.min_value = SPINBOX_MIN
 	spin.max_value = SPINBOX_MAX
@@ -235,14 +248,17 @@ func _create_string_control(value: String, prop_name: String) -> LineEdit:
 	line_edit.focus_exited.connect(func(): _on_property_changed(prop_name, line_edit.text))
 	return line_edit
 
-func _create_vector2_control(value: Vector2, prop_name: String) -> HBoxContainer:
-	var hbox = HBoxContainer.new()
-	
+func _create_vector2_control(value: Vector2, prop_name: String) -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+
+	# X axis
+	var hbox_x = HBoxContainer.new()
 	var x_label = Label.new()
 	x_label.text = "X"
-	x_label.custom_minimum_size.x = spinbox_min_x / 2
-	hbox.add_child(x_label)
-	
+	x_label.custom_minimum_size.x = vector_axis_label_width
+	x_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	hbox_x.add_child(x_label)
+
 	var x_spin = SpinBox.new()
 	x_spin.min_value = SPINBOX_MIN
 	x_spin.max_value = SPINBOX_MAX
@@ -250,21 +266,27 @@ func _create_vector2_control(value: Vector2, prop_name: String) -> HBoxContainer
 	x_spin.value = value.x
 	x_spin.allow_greater = true
 	x_spin.allow_lesser = true
-	x_spin.custom_minimum_size.x = spinbox_min_x / 2
-	x_spin.value_changed.connect(func(v): 
+	x_spin.custom_minimum_size.x = vector_axis_spin_min_x
+	x_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	x_spin.value_changed.connect(func(v):
 		var vec = _current_target.get(prop_name)
 		_on_property_changed(prop_name, Vector2(v, vec.y))
 	)
 	_add_draggable_to_spinbox(x_spin, prop_name, func(delta):
 		x_spin.value += delta
 	)
-	hbox.add_child(x_spin)
-	
+	hbox_x.add_child(x_spin)
+
+	vbox.add_child(hbox_x)
+
+	# Y axis
+	var hbox_y = HBoxContainer.new()
 	var y_label = Label.new()
 	y_label.text = "Y"
-	y_label.custom_minimum_size.x = spinbox_min_x / 2
-	hbox.add_child(y_label)
-	
+	y_label.custom_minimum_size.x = vector_axis_label_width
+	y_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	hbox_y.add_child(y_label)
+
 	var y_spin = SpinBox.new()
 	y_spin.min_value = SPINBOX_MIN
 	y_spin.max_value = SPINBOX_MAX
@@ -272,31 +294,34 @@ func _create_vector2_control(value: Vector2, prop_name: String) -> HBoxContainer
 	y_spin.value = value.y
 	y_spin.allow_greater = true
 	y_spin.allow_lesser = true
-	y_spin.custom_minimum_size.x = spinbox_min_x / 2
-	y_spin.value_changed.connect(func(v): 
+	y_spin.custom_minimum_size.x = vector_axis_spin_min_x
+	y_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	y_spin.value_changed.connect(func(v):
 		var vec = _current_target.get(prop_name)
 		_on_property_changed(prop_name, Vector2(vec.x, v))
 	)
 	_add_draggable_to_spinbox(y_spin, prop_name, func(delta):
 		y_spin.value += delta
 	)
-	hbox.add_child(y_spin)
-	
-	return hbox
+	hbox_y.add_child(y_spin)
+
+	vbox.add_child(hbox_y)
+
+	return vbox
 
 func _create_vector3_control(value: Vector3, prop_name: String) -> VBoxContainer:
 	var vbox = VBoxContainer.new()
-	
+
 	for i in range(3):
 		var hbox = HBoxContainer.new()
 		var axis_name = ["X", "Y", "Z"][i]
 		var axis_value = [value.x, value.y, value.z][i]
-		
+
 		var label = Label.new()
 		label.text = axis_name
 		label.custom_minimum_size.x = vector_axis_label_width
 		hbox.add_child(label)
-		
+
 		var spin = SpinBox.new()
 		spin.min_value = SPINBOX_MIN
 		spin.max_value = SPINBOX_MAX
@@ -306,7 +331,7 @@ func _create_vector3_control(value: Vector3, prop_name: String) -> VBoxContainer
 		spin.custom_minimum_size.x = vector_axis_spin_min_x
 		spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		spin.value = axis_value
-		
+
 		if i == 0:
 			spin.value_changed.connect(func(v):
 				var vec = _current_target.get(prop_name)
@@ -322,14 +347,14 @@ func _create_vector3_control(value: Vector3, prop_name: String) -> VBoxContainer
 				var vec = _current_target.get(prop_name)
 				_on_property_changed(prop_name, Vector3(vec.x, vec.y, v))
 			)
-		
+
 		_add_draggable_to_spinbox(spin, prop_name, func(delta):
 			spin.value += delta
 		)
-		
+
 		hbox.add_child(spin)
 		vbox.add_child(hbox)
-	
+
 	return vbox
 
 func _create_color_control(value: Color, prop_name: String) -> ColorPickerButton:
@@ -338,7 +363,7 @@ func _create_color_control(value: Color, prop_name: String) -> ColorPickerButton
 	color_picker.edit_alpha = true
 	color_picker.custom_minimum_size = Vector2(color_picker_width, color_picker_height)
 	color_picker.color_changed.connect(func(color): _on_property_changed(prop_name, color))
-	
+
 	# Reposition the popup when it opens
 	color_picker.get_popup().about_to_popup.connect(func():
 		var popup := color_picker.get_popup()
@@ -347,7 +372,7 @@ func _create_color_control(value: Color, prop_name: String) -> ColorPickerButton
 		popup.size = color_picker.size * .9
 		popup.set_position(global_pos)
 	)
-	
+
 	return color_picker
 
 func _create_object_control(value, prop_name: String) -> RichTextLabel:
@@ -374,14 +399,14 @@ func _add_draggable_to_spinbox(spin: SpinBox, prop_name: String, custom_drag_han
 	draggable.name = "DragOverlay"
 	draggable.base_drag_speed = spin.step * drag_speed_multiplier
 	spin.add_child(draggable)
-	
+
 	if custom_drag_handler.is_valid():
 		draggable.drag_changed.connect(custom_drag_handler)
 	else:
 		draggable.drag_changed.connect(func(delta):
 			spin.value += delta  # No clamping needed - min/max are already INF
 		)
-	
+
 	draggable.click_detected.connect(func():
 		spin.grab_focus()
 	)
