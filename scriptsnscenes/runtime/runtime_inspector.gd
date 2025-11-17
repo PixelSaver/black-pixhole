@@ -335,6 +335,16 @@ func _create_color_control(value: Color, prop_name: String) -> ColorPickerButton
 	color_picker.edit_alpha = true
 	color_picker.custom_minimum_size = Vector2(color_picker_width, color_picker_height)
 	color_picker.color_changed.connect(func(color): _on_property_changed(prop_name, color))
+	
+	# Reposition the popup when it opens
+	color_picker.get_popup().about_to_popup.connect(func():
+		var popup := color_picker.get_popup()
+
+		var global_pos = Vector2(0,100)
+		popup.size = color_picker.size * .9
+		popup.set_position(global_pos)
+	)
+	
 	return color_picker
 
 func _create_object_control(value, prop_name: String) -> RichTextLabel:
