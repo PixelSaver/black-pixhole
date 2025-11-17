@@ -29,11 +29,11 @@ uniform float star_size_scale = 0.012;
 // ---------- Grid Params --------
 uniform bool show_grid = true;
 uniform vec3 grid_color : source_color = vec3(0.5, 0.7, 1.0);
-uniform float grid_spacing = 1e10; // Spacing between grid lines (matches C++)
-uniform float grid_line_thickness = 2e9; // Width of grid lines
-uniform float grid_alpha = 0.8;
-uniform float grid_range = 1.5e11; // How far grid extends
-uniform float grid_warp_offset = 3e10; // Offset from C++ code
+uniform float grid_spacing = 10; // Spacing between grid lines (matches C++)
+uniform float grid_line_thickness = 0.8; // Width of grid lines
+uniform float grid_alpha = 1;
+uniform float grid_range = 60.; // How far grid extends
+uniform float grid_warp_offset = 50.; // Offset from C++ code
 
 // ---------- Spherical star (option A: finite sphere) ----------
 uniform vec3 bigstar_center = vec3(0.0, 50.0, -200.0); // world position of star
