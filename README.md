@@ -121,9 +121,9 @@ If you still insist on building this unoptimized mess, go ahead. Oh, but the rel
   - [ ] Post processing (bloom etc)
   - [X] Put a grid under it to show a point of non-moving
 - [X] Make it interactible, move the camera around using mouse position
-  - [ ] Edit the simulation yourself using the access to the simulator
+  - [X] Edit the simulation yourself using the access to the simulator
 ### Notes
-A few of the editor values don't work. Maybe will fix later, but the disk color doesn't work, the big star follows the black hole position, the color picker is rather hard to see text, the camera fov doesn't change anything, and all of the smaller star stuff doesn't work as of now. Sorry...
+A few of the editor values don't work. Maybe will fix later, but the big star follows the black hole position, the camera fov doesn't change anything, and all of the smaller star stuff doesn't work as of now. Sorry...
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
