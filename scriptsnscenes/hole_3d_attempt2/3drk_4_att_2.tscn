@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://c8eg3lxxp6dkk"]
+[gd_scene load_steps=6 format=3 uid="uid://c8eg3lxxp6dkk"]
 
 [ext_resource type="Shader" uid="uid://b5igeaf2yd1ue" path="res://scriptsnscenes/hole_3d_attempt2/3drk_4_att_2.gdshader" id="1_ibl3l"]
 [ext_resource type="Script" uid="uid://b3upskq6r7ebj" path="res://scriptsnscenes/hole_3d_attempt2/3_drk_4_att_2.gd" id="1_y070x"]
+[ext_resource type="Script" uid="uid://cwj00nuurbgok" path="res://scriptsnscenes/hole_3d_attempt2/shader_controller.gd" id="3_b48uo"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_b48uo"]
 shader = ExtResource("1_ibl3l")
@@ -71,7 +72,7 @@ shader_parameter/bigstar_surface_brightness = 2.675
 shader_parameter/bigstar_halo = 1.245
 shader_parameter/viewport_size = Vector2(288, 162)
 
-[node name="3DRK4_Att2" type="Control" node_paths=PackedStringArray("pause")]
+[node name="3DRK4_Att2" type="Control" node_paths=PackedStringArray("shader_controller", "pause")]
 process_mode = 1
 material = SubResource("ShaderMaterial_b48uo")
 layout_mode = 3
@@ -81,6 +82,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_y070x")
+shader_controller = NodePath("SubViewportContainer/SubViewport/ShaderRect/ShaderController")
 pause = NodePath("SubViewportContainer")
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="."]
@@ -107,3 +109,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="ShaderController" type="Node" parent="SubViewportContainer/SubViewport/ShaderRect" node_paths=PackedStringArray("target")]
+script = ExtResource("3_b48uo")
+target = NodePath("..")

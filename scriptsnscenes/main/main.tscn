@@ -12,6 +12,8 @@ script = ExtResource("1_j6fwf")
 [node name="3DRK4_Att2" parent="." node_paths=PackedStringArray("pause") instance=ExtResource("2_ofk34")]
 focus_mode = 1
 pause = NodePath("SubViewportContainer/SubViewport/ShaderRect")
+min_distance = null
+max_distance = null
 zoom_speed = 10.0
 
 [node name="SubViewportContainer" parent="3DRK4_Att2" index="0"]
