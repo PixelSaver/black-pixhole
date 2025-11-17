@@ -78,6 +78,9 @@ func inspect(target: Object):
 			
 		if not show_private_properties and prop.name.begins_with("_"):
 			continue
+			
+		if prop.name == "target":
+			continue
 		
 		property_names.append(prop.name)
 		_create_property_control(prop)

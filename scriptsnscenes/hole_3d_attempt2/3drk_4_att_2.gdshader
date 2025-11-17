@@ -17,7 +17,8 @@ uniform float camera_fov = 60.0;
 // ---------- Accretion Disc Params --------
 uniform float disc_inner_radius = 2.2;
 uniform float disc_outer_radius = 5.2;
-uniform vec3 disc_color : source_color = vec3(1.0, 0.5, 0.2);
+uniform vec3 disc_inner_color : source_color = vec3(1.0, 0.95, 0.8);
+uniform vec3 disc_outer_color : source_color = vec3(1.0, 0.3, 0.1);
 uniform float disc_thickness = 1.;
 
 // -------- Star params ---------
@@ -209,10 +210,7 @@ vec3 getDiskColor(vec3 intersectionPoint) {
     float r_norm = (r - disc_inner_radius) / max(disc_outer_radius - disc_inner_radius, EPS);
     r_norm = clamp(r_norm, 0.0, 1.0);
 
-    vec3 hot_color = vec3(1.0, 0.95, 0.8);
-    vec3 cool_color = vec3(1.0, 0.3, 0.1);
-
-    return mix(hot_color, cool_color, r_norm);
+    return mix(disc_inner_color, disc_outer_color, r_norm);
 }
 // Simple hash function to generate pseudo-random values
 float hash21(vec2 p) {
@@ -490,7 +488,7 @@ void fragment() {
         rk4Step(ray, adaptive_step);
 
         vec3 newPos = vec3(ray.x, ray.y, ray.z);
-        
+
         // --- check finite star sphere intersection ---
         float t_hit;
         vec3 hitPos;
@@ -502,10 +500,10 @@ void fragment() {
             // simple limb darkening / spec: bright at center, darker at limb
             float cosTheta = clamp(dot(N, V), 0.0, 1.0);
             float surface = pow(cosTheta, 0.5); // tweak exponent for limb profile
-        
+
             // surface emission (additive):
             vec3 surfColor = bigstar_emission * bigstar_surface_brightness * surface;
-        
+
             // halo: soft additive glow depending on angle between ray and center
             // compute angular distance between viewing direction and star center as seen from camera
             vec3 dirToStarFromCamera = normalize(bigstar_center - camera_position);
@@ -513,7 +511,7 @@ void fragment() {
             float ang = max(0.0, dot(dirToStarFromCamera, currentRayDir)); // 1 at center
             float halo = pow(ang, 16.0); // tight halo; tweak exponent
             vec3 haloColor = bigstar_emission * (bigstar_halo * halo);
-        
+
             color_out = surfColor + haloColor;
             // early out: we hit the star surface -> done
             hitStar = true;
@@ -535,8 +533,6 @@ void fragment() {
 
     // Derive final (bent) sky direction from ray's final position
     vec3 finalDir = normalize(vec3(ray.x, ray.y, ray.z) - black_hole_position);
-
-
 
     // Apply colors in priority order
     if (hitDisk || hitStar) {

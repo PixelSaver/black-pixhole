@@ -4,13 +4,16 @@
 
 [node name="RuntimeInspector" type="PanelContainer"]
 anchors_preset = -1
-anchor_left = 0.7
+anchor_left = 0.75
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_opkyv")
+inspector_min_width = 0
 inspector_min_height = 0
-property_label_min_x = 290
-spinbox_min_x = 65
+value_column_max_width = 60
+property_label_min_x = 50
+spinbox_min_x = 50
 vector_axis_spin_min_x = 20
+color_picker_width = 30

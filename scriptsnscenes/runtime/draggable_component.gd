@@ -37,12 +37,6 @@ func _ready():
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	mouse_default_cursor_shape = Control.CURSOR_DRAG
 
-	# Fill parent completely
-	anchor_left = 0.0
-	anchor_right = 1.0
-	anchor_top = 0.0
-	anchor_bottom = 1.0
-	size = get_parent().size
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 	# Ensure overlay is on top
