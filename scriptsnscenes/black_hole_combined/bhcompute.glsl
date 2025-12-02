@@ -297,9 +297,7 @@ void main() {
     
     // Simple tone mapping
     color = color / (color + 3.0);
-        // Show ray direction as color for debugging
-    imageStore(output_image, pixel_coords, vec4(ray_dir * 0.5 + 0.5, 1.0));
-    return;
+        
     // Write output
     imageStore(output_image, pixel_coords, vec4(color, 1.0));
 }
