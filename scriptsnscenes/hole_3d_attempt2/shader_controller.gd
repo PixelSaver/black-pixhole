@@ -44,7 +44,7 @@ class_name ShaderController
 	set(v): star_color = v; _update_param("star_color", _color_to_vec3(v))
 @export_range(0.0, 10.0) var star_brightness: float = 0.0:
 	set(v): star_brightness = v; _update_param("star_brightness", v)
-@export_range(0.0, 0.02) var star_density: float = 0.0:
+@export_range(0.0, 1.0) var star_density: float = 0.0:
 	set(v): star_density = v; _update_param("star_density", v)
 @export_range(0.001, 0.05) var star_size_scale: float = 0.0:
 	set(v): star_size_scale = v; _update_param("star_size_scale", v)

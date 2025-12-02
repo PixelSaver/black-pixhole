@@ -1,0 +1,19 @@
+[gd_resource type="ShaderMaterial" load_steps=5 format=3 uid="uid://p4t64le73iy3"]
+
+[ext_resource type="Shader" uid="uid://chxflauolk0t3" path="res://scriptsnscenes/black hole/black_hole.gdshader" id="1_j4boo"]
+[ext_resource type="CompressedCubemap" uid="uid://pvsj45iyimxg" path="res://scriptsnscenes/black hole/skybox.png" id="2_cods3"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_cmqjf"]
+noise_type = 0
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_6kylb"]
+noise = SubResource("FastNoiseLite_cmqjf")
+seamless = true
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_j4boo")
+shader_parameter/radius = 0.0
+shader_parameter/noise = SubResource("NoiseTexture2D_6kylb")
+shader_parameter/skybox = ExtResource("2_cods3")

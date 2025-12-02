@@ -226,32 +226,37 @@ float getStarBrightness(vec3 dir) {
     float phi = atan(dir.y, dir.x);               // -PI..PI
     float theta = acos(clamp(dir.z, -1.0, 1.0));  // 0..PI
 
-    // Scale to a hash grid on the sphere
-    vec2 hashCoord = vec2(phi, theta) * 50.0; // tweak density via multiplier
+    // Map to 0..1 for hashing
+    vec2 hashCoord = vec2((phi + PI) / (2.0 * PI), theta / PI) * 50.0;
     float h = hash21(hashCoord);
 
-    // Decide whether this hash cell contains a star
-    if (h > 1.0 - star_density) {
-        // local fractional position within hash cell; makes spot look centered
-        vec2 fracPos = fract(hashCoord);
-        vec2 center = vec2(0.5);
-        float dist = length(fracPos - center);
+    // Map hash to brightness
+    float brightness = smoothstep(0.0, star_density, h); // small probability per cell
 
-        // map h -> local size/brightness
-        float t = (h - (1.0 - star_density)) / max(star_density, EPS); // 0..1
-        float angular_size = mix(0.003, 0.02, t) * star_size_scale; // angular radius (rough)
+    // local fractional position within hash cell
+    vec2 fracPos = fract(hashCoord);
+    vec2 center = vec2(0.5);
+    float dist = length(fracPos - center);
 
-        // star profile: gaussian falloff by cell-local distance
-        // normalize dist (0..~0.707). scale to relative radius
-        float profile = exp(-pow(dist / (angular_size + 1e-6), 2.0) * 8.0);
+    float angular_size = 0.01; // tweak as needed
+    float profile = exp(-pow(dist / angular_size, 2.0) * 8.0);
+    float halo = exp(-pow(dist / (angular_size*3.0), 2.0) * 4.0) * 0.6;
 
-        // small additional smoothness by sampling nearby fractional offsets (soft halo)
-        float halo = exp(-pow(dist / (angular_size * 3.0 + 1e-6), 2.0) * 4.0) * 0.6;
-
-        return clamp(profile * 1.0 + halo * 0.5, 0.0, 1.0);
-    }
-    return 0.0;
+    return clamp((profile + 0.5*halo) * brightness, 0.0, 1.0);
 }
+vec3 getStableStarDir(vec3 rayDir) {
+    // Project rayDir onto a unit sphere and quantize for hash
+    float phi = atan(rayDir.y, rayDir.x);
+    float theta = acos(clamp(rayDir.z, -1.0, 1.0));
+
+    // Quantize into hash grid
+    float N = 100.0; // number of cells around sphere
+    float qphi = floor((phi + PI)/(2.0*PI) * N);
+    float qtheta = floor(theta / PI * N);
+
+    return vec3(qphi, qtheta, 0.0); // return as 2D coord for hashing
+}
+
 // Calculate warped Y coordinate for the grid surface (matching C++ exactly)
 // This replicates the C++ generateGrid() function
 float calculateWarpedGridY(float worldX, float worldZ) {
@@ -556,11 +561,14 @@ void fragment() {
         // color_out = background_color;
 
         // Stars (procedural)
-        float starVal = getStarBrightness(finalDir) * star_brightness;
+        vec3 starDir = getStableStarDir(ray_dir);
+        vec2 hashCoord = vec2(starDir.x, starDir.y);
+        float h = hash21(hashCoord);
+        float starVal = getStarBrightness(ray_dir) * star_brightness;
         if (starVal > 1.-star_density) {
             // additive contribution so very bright stars "bleed" a bit
-            color_out = mix(color_out, star_color, starVal);
-            // color_out += star_color * starVal;
+            // color_out = mix(color_out, star_color, starVal);
+            color_out += star_color * starVal;
         }
 
         // small tonemapping / clamp

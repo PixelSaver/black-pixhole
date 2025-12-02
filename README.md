@@ -152,3 +152,4 @@ Project Link: [https://github.com/PixelSaver/PlacePixels](https://github.com/Pix
 ## Acknowledgments
 
 * Many thanks for both the inspiration and the code from [@kavan010](https://github.com/kavan010/black_hole/)'s amazing black hole C++ simulation. Couldn't have done it without you.
+* https://godotshaders.com/shader/black-hole-shader/ by [TheOxideGamer](https://godotshaders.com/author/theoxidegamer/)

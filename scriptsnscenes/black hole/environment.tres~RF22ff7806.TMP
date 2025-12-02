@@ -1,0 +1,8 @@
+[gd_resource type="Environment" load_steps=0 format=3 uid="uid://cf1as7fg8s082"]
+
+[resource]
+background_mode = 2
+volumetric_fog_density = 0.0
+adjustment_brightness = 2.64
+adjustment_contrast = 0.87
+adjustment_saturation = 8.0
