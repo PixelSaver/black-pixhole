@@ -4,11 +4,9 @@
 [ext_resource type="Script" uid="uid://combte7od4ip1" path="res://scriptsnscenes/black hole/camera_3d.gd" id="2_5vpqt"]
 [ext_resource type="Material" uid="uid://p4t64le73iy3" path="res://scriptsnscenes/black hole/black_hole.tres" id="3_5vpqt"]
 
-[sub_resource type="SphereMesh" id="SphereMesh_q3cb1"]
-radius = 5.1
-height = 6.0
-radial_segments = 20
-rings = 10
+[sub_resource type="SphereMesh" id="SphereMesh_dy13r"]
+radius = 10.0
+height = 20.0
 
 [node name="BlackHole" type="Node3D"]
 
@@ -22,5 +20,7 @@ current = true
 script = ExtResource("2_5vpqt")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(-1, 8.742278e-08, 0, -8.742278e-08, -1, 0, 0, 0, 1, 0, 0, 0)
 material_override = ExtResource("3_5vpqt")
-mesh = SubResource("SphereMesh_q3cb1")
+cast_shadow = 0
+mesh = SubResource("SphereMesh_dy13r")

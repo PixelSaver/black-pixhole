@@ -1,5 +1,5 @@
 extends Control
-class_name RK4Attempt2
+class_name BlackHoleCombined
 
 @onready var shader_mat := $SubViewportContainer/SubViewport/ShaderRect.material as ShaderMaterial
 @export var shader_controller : ShaderController
@@ -16,16 +16,13 @@ var rotation_speed := 0.01
 var fov := 60.0
 
 func _ready():
-	Global.rk4_att2 = self
 	pause.process_mode = Node.PROCESS_MODE_PAUSABLE
 	yaw = .5
 	pitch = -.3
 	_update_shader_camera()
 	await get_tree().process_frame
-	if not Global.runtime_inspector: return
-	Global.runtime_inspector.inspect(shader_controller)
 
-func _gui_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		yaw -= event.relative.x * rotation_speed 
 		pitch = clamp(pitch - event.relative.y * rotation_speed, -PI/2.+.001, PI/2.-.001)

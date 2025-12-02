@@ -1,0 +1,84 @@
+[gd_scene load_steps=8 format=3 uid="uid://1o7ij6t5x4qd"]
+
+[ext_resource type="Script" uid="uid://cuo3l8pjxp8y" path="res://scriptsnscenes/black_hole_combined/black_hole_combined.gd" id="1_rdwmm"]
+[ext_resource type="Shader" uid="uid://busnvlbmm8v8" path="res://scriptsnscenes/black_hole_combined/black_hole_combined.gdshader" id="2_hgfe4"]
+[ext_resource type="Script" uid="uid://cwj00nuurbgok" path="res://scriptsnscenes/hole_3d_attempt2/shader_controller.gd" id="3_fx4as"]
+[ext_resource type="CompressedCubemap" uid="uid://pvsj45iyimxg" path="res://scriptsnscenes/black hole/skybox.png" id="3_odqws"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_7s5t1"]
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_p2dfn"]
+noise = SubResource("FastNoiseLite_7s5t1")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_odqws"]
+shader = ExtResource("2_hgfe4")
+shader_parameter/black_hole_position = Vector3(0, 0, 0)
+shader_parameter/schwarzschild_radius = 1.0
+shader_parameter/black_hole_color = Color(0, 0, 0, 1)
+shader_parameter/max_steps = 150
+shader_parameter/step_size = 4.01
+shader_parameter/escape_radius = 99999.9999999997
+shader_parameter/camera_position = Vector3(0, 0, 100)
+shader_parameter/camera_target = Vector3(0, 0, 0)
+shader_parameter/camera_fov = 60.0
+shader_parameter/viewport_size = Vector2(288, 162)
+shader_parameter/skybox = ExtResource("3_odqws")
+shader_parameter/skybox_brightness = 1.0
+shader_parameter/enable_disc = true
+shader_parameter/disc_inner_radius = 26.009649999999922
+shader_parameter/disc_outer_radius = 36.81
+shader_parameter/disc_thickness = 1000.0
+shader_parameter/disc_inner_color = Color(1, 0.9490196, 0.8, 1)
+shader_parameter/disc_outer_color = Color(1, 0.3019608, 0.101960786, 1)
+shader_parameter/disc_noise = SubResource("NoiseTexture2D_p2dfn")
+shader_parameter/disc_emission_strength = 2.0
+shader_parameter/show_grid = true
+shader_parameter/grid_color = Color(0.5, 0.7, 1, 1)
+shader_parameter/grid_spacing = 10.0
+shader_parameter/grid_line_thickness = 0.8
+shader_parameter/grid_alpha = 1.0
+shader_parameter/grid_range = 60.0
+shader_parameter/grid_warp_offset = 50.84
+shader_parameter/star_density = 0.055
+shader_parameter/star_brightness = 1.0
+shader_parameter/star_color = Color(1, 1, 0.7294118, 1)
+
+[node name="BlackHoleCombined" type="Control" node_paths=PackedStringArray("shader_controller", "pause")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+script = ExtResource("1_rdwmm")
+shader_controller = NodePath("SubViewportContainer/SubViewport/ShaderRect/ShaderController")
+pause = NodePath("SubViewportContainer/SubViewport/ShaderRect")
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="."]
+texture_filter = 1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
+disable_3d = true
+handle_input_locally = false
+size = Vector2i(1728, 972)
+render_target_update_mode = 4
+
+[node name="ShaderRect" type="ColorRect" parent="SubViewportContainer/SubViewport"]
+material = SubResource("ShaderMaterial_odqws")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ShaderController" type="Node" parent="SubViewportContainer/SubViewport/ShaderRect" node_paths=PackedStringArray("target")]
+script = ExtResource("3_fx4as")
+target = NodePath("..")

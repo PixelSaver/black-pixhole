@@ -1,0 +1,58 @@
+[gd_scene load_steps=6 format=3 uid="uid://bajm6dqruukuw"]
+
+[ext_resource type="Script" uid="uid://0i4lx2raarcw" path="res://bh_compute.gd" id="1_c2cox"]
+[ext_resource type="Shader" uid="uid://d4acjx2pqw4w7" path="res://scriptsnscenes/black_hole_combined/bhcompute.glsl" id="2_83yca"]
+[ext_resource type="CompressedCubemap" uid="uid://pvsj45iyimxg" path="res://scriptsnscenes/black hole/skybox.png" id="3_83yca"]
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_83yca"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_hrmup"]
+shader = ExtResource("2_83yca")
+shader_parameter/black_hole_position = Vector3(0, 0, 0)
+shader_parameter/schwarzschild_radius = 1.0
+shader_parameter/black_hole_color = Color(0, 0, 0, 1)
+shader_parameter/max_steps = 100000
+shader_parameter/step_size = 0.999999999999997
+shader_parameter/escape_radius = 999.999999999997
+shader_parameter/camera_position = Vector3(0, 0, 5)
+shader_parameter/camera_target = Vector3(0, 0, 0)
+shader_parameter/camera_fov = 60.0
+shader_parameter/viewport_size = Vector2(800, 600)
+shader_parameter/skybox = ExtResource("3_83yca")
+shader_parameter/skybox_brightness = 1.0
+shader_parameter/enable_disc = true
+shader_parameter/disc_inner_radius = 2.2
+shader_parameter/disc_outer_radius = 5.2
+shader_parameter/disc_thickness = 0.15
+shader_parameter/disc_inner_color = Color(1, 0.95, 0, 1)
+shader_parameter/disc_outer_color = Color(1, 0.3, 0, 1)
+shader_parameter/disc_noise = SubResource("NoiseTexture2D_83yca")
+shader_parameter/disc_emission_strength = 2.0
+shader_parameter/show_grid = true
+shader_parameter/grid_color = Color(0.5, 0.7, 1, 1)
+shader_parameter/grid_spacing = 10.0
+shader_parameter/grid_line_thickness = 0.15
+shader_parameter/grid_alpha = 0.8
+shader_parameter/grid_range = 60.0
+shader_parameter/grid_warp_offset = 50.0
+shader_parameter/star_density = 0.003
+shader_parameter/star_brightness = 1.5
+shader_parameter/star_color = Color(1, 1, 1, 1)
+
+[node name="BHCompute" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_c2cox")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_hrmup")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
