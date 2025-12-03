@@ -20,6 +20,14 @@ func _ready():
 	_setup_shader()
 	_setup_textures()
 	_setup_uniforms()
+	
+	# Debug: print camera info
+	var cam = get_viewport().get_camera_3d()
+	if cam:
+		print("Camera pos: ", cam.global_position)
+		print("Black hole pos: ", black_hole_position)
+	else:
+		print("WARNING: No camera found!")
 
 func _setup_shader():
 	var shader_file := load("res://scriptsnscenes/black_hole_combined/bhcompute.glsl")
@@ -81,34 +89,66 @@ func _setup_uniforms():
 func _create_params_buffer() -> RID:
 	var params := PackedFloat32Array()
 	
-	# Black hole (16 bytes alignment)
-	params.append_array([black_hole_position.x, black_hole_position.y, black_hole_position.z, schwarzschild_radius])
-	params.append_array([0.0, 0.0, 0.0, 1.0])  # black_hole_color
+	# Black hole
+	params.append_array([black_hole_position.x, black_hole_position.y, black_hole_position.z])
+	params.append(schwarzschild_radius)
+	params.append_array([0.1, 0.1, 0.1, 1.0])  # black_hole_color (darker so you can see it)
 	
-	# Camera
-	var cam_pos := get_viewport().get_camera_3d().global_position if get_viewport().get_camera_3d() else Vector3(0, 5, 10)
+	# Camera - hardcoded for testing
+	var cam_pos := Vector3(0, 8, 20)
 	var cam_target := black_hole_position
-	params.append_array([cam_pos.x, cam_pos.y, cam_pos.z, camera_fov])
-	params.append_array([cam_target.x, cam_target.y, cam_target.z, Time.get_ticks_msec() / 1000.0])
 	
-	# Rendering
-	params.append_array([float(resolution.x), float(resolution.y), 200.0, 0.5])  # resolution, max_steps, step_size
-	params.append_array([1000.0, 2.0, 0.0, 0.0])  # escape_radius, skybox_brightness, padding
+	# Try to use scene camera if available
+	if get_viewport() and get_viewport().get_camera_3d():
+		cam_pos = get_viewport().get_camera_3d().global_position
+	
+	params.append_array([cam_pos.x, cam_pos.y, cam_pos.z])
+	params.append(camera_fov)
+	params.append_array([cam_target.x, cam_target.y, cam_target.z])
+	params.append(Time.get_ticks_msec() / 1000.0)
+	
+	# Rendering - changed to int/float mix
+	params.append(float(resolution.x))
+	params.append(float(resolution.y))
+	params.append(500.0)  # max_steps (as float for alignment)
+	params.append(0.1)  # step_size - smaller steps
+	params.append(100.0)  # escape_radius
+	params.append(1.5)  # skybox_brightness - brighter
+	params.append(0.0)  # padding
+	params.append(0.0)  # padding
 	
 	# Disc
-	params.append_array([4.0, 8.0, 0.2, 3.0])  # inner, outer, thickness, emission
-	params.append_array([1.0, 0.5, 0.0, 1.0])  # inner_color
-	params.append_array([1.0, 0.8, 0.3, 1.0])  # outer_color
-	params.append_array([1.0, 0.0, 0.0, 0.0])  # enable_disc, padding
+	params.append(schwarzschild_radius * 2.0)  # disc_inner_radius
+	params.append(schwarzschild_radius * 6.0)  # disc_outer_radius
+	params.append(0.3)  # disc_thickness
+	params.append(5.0)  # disc_emission_strength - brighter
+	params.append_array([1.0, 0.3, 0.1, 1.0])  # disc_inner_color (orange)
+	params.append_array([1.0, 0.8, 0.3, 1.0])  # disc_outer_color (yellow)
+	params.append(1.0)  # enable_disc
+	params.append(0.0)  # padding
+	params.append(0.0)  # padding
+	params.append(0.0)  # padding
 	
 	# Grid
-	params.append_array([1.0, 2.0, 0.1, 0.3])  # show_grid, spacing, thickness, alpha
-	params.append_array([20.0, 2.0, 0.0, 0.0])  # range, warp_offset, padding
-	params.append_array([0.0, 1.0, 1.0, 1.0])  # grid_color
+	params.append(1.0)  # show_grid
+	params.append(2.0)  # grid_spacing
+	params.append(0.08)  # grid_line_thickness
+	params.append(0.5)  # grid_alpha
+	params.append(30.0)  # grid_range
+	params.append(schwarzschild_radius)  # grid_warp_offset
+	params.append(0.0)  # padding
+	params.append(0.0)  # padding
+	params.append_array([0.3, 0.8, 1.0, 1.0])  # grid_color (cyan)
 	
 	# Stars
-	params.append_array([0.001, 1.0, 0.0, 0.0])  # density, brightness, padding
+	params.append(0.002)  # star_density
+	params.append(2.0)  # star_brightness
+	params.append(0.0)  # padding
+	params.append(0.0)  # padding
 	params.append_array([1.0, 1.0, 1.0, 1.0])  # star_color
+	
+	print("Params buffer size: ", params.size() * 4, " bytes")
+	print("Camera pos: ", cam_pos, " -> target: ", cam_target)
 	
 	return rd.uniform_buffer_create(params.size() * 4, params.to_byte_array())
 
@@ -176,10 +216,20 @@ func _process(_delta):
 func _display_result():
 	# Get texture data and display it
 	var byte_data := rd.texture_get_data(output_tex, 0)
+	if byte_data.size() == 0:
+		print("ERROR: No texture data!")
+		return
+		
 	var img := Image.create_from_data(resolution.x, resolution.y, false, Image.FORMAT_RGBAH, byte_data)
 	
+	# Sample center pixel for debug
+	var center_color = img.get_pixel(resolution.x / 2, resolution.y / 2)
+	print("Center pixel: ", center_color)
+	
 	# Display on a sprite or viewport
-	texture = ImageTexture.create_from_image(img) if has_node("Sprite2D") else null
+	texture = ImageTexture.create_from_image(img)
+	img.save_png("res://black_hole_output.png")
+	print("Saved to black_hole_output.png")
 
 func _exit_tree():
 	if rd:
