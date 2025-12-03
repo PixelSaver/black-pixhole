@@ -28,7 +28,7 @@ layout(set = 0, binding = 3, std140) uniform Params {
 
     // Rendering
     vec2 resolution;
-    int max_steps;
+    float max_steps;
     float step_size;
     float escape_radius;
     float skybox_brightness;
@@ -40,10 +40,10 @@ layout(set = 0, binding = 3, std140) uniform Params {
     float disc_emission_strength;
     vec4 disc_inner_color;
     vec4 disc_outer_color;
-    int enable_disc;
+    float enable_disc;
 
     // Grid
-    int show_grid;
+    float show_grid;
     float grid_spacing;
     float grid_line_thickness;
     float grid_alpha;
@@ -76,7 +76,7 @@ vec3 bendRay(vec3 pos, vec3 dir, float step) {
 
 // ========== DISC FUNCTIONS ==========
 bool checkDiscIntersection(vec3 p0, vec3 p1, out vec3 hit_pos) {
-    if (params.enable_disc == 0) return false;
+    if (params.enable_disc < 0.5 ) return false;
     if (p0.y * p1.y >= 0.0) return false;
 
     float t = p0.y / (p0.y - p1.y);
@@ -110,7 +110,7 @@ vec3 getDiscColor(vec3 pos) {
 
 // ========== GRID FUNCTIONS ==========
 float calculateWarpedGridY(float x, float z) {
-    if (params.show_grid == 0) return 0.0;
+    if (params.show_grid < 0.5) return 0.0;
 
     float dx = x - params.black_hole_position.x;
     float dz = z - params.black_hole_position.z;
@@ -201,7 +201,7 @@ void main() {
     float current_step = params.step_size;
 
     // Main raymarching loop
-    for (int i = 0; i < params.max_steps; i++) {
+    for (float i = 0.0; i < params.max_steps; i+=1.0) {
         // Bend ray
         ray_dir = bendRay(ray_pos, ray_dir, current_step);
 

@@ -12,7 +12,7 @@ uniform float escape_radius = 1e4;
 
 uniform vec3 camera_position = vec3(0.0, 0.0, 100);
 uniform vec3 camera_target = vec3(0.0, 0.0, 0.0);
-uniform float camera_fov = 60.0;
+uniform float camera_fov = 60.1;
 
 // ---------- Accretion Disc Params --------
 uniform float disc_inner_radius = 2.2;

@@ -5,6 +5,10 @@ var shader: RID
 var pipeline: RID
 var output_tex: RID
 var uniform_set: RID
+var skybox_tex: RID
+var noise_tex: RID
+var sampler: RID
+var params_buffer: RID
 
 # Rendering
 @export_group("Rendering")
@@ -36,6 +40,7 @@ var uniform_set: RID
 @export_range(0.1, 20.0) var disc_emission_strength := 5.0
 @export var disc_inner_color := Color(1.0, 0.3, 0.1, 1.0)
 @export var disc_outer_color := Color(1.0, 0.8, 0.3, 1.0)
+@export var disc_noise_texture: NoiseTexture2D
 
 # Grid
 @export_group("Spacetime Grid")
@@ -57,11 +62,11 @@ func _ready():
 	if not rd:
 		push_error("Failed to create RenderingDevice")
 		return
-
+	
 	_setup_shader()
 	_setup_textures()
 	_setup_uniforms()
-
+	
 	# Debug: print camera info
 	var cam = get_viewport().get_camera_3d()
 	if cam:
@@ -69,6 +74,8 @@ func _ready():
 		print("Black hole pos: ", black_hole_position)
 	else:
 		print("WARNING: No camera found!")
+	
+	_update_shader()
 
 func _setup_shader():
 	var shader_file := load("res://scriptsnscenes/black_hole_combined/bhcompute.glsl")
@@ -86,19 +93,19 @@ func _setup_textures():
 					 RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT | \
 					 RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | \
 					 RenderingDevice.TEXTURE_USAGE_CAN_COPY_FROM_BIT
-
+	
 	output_tex = rd.texture_create(fmt, RDTextureView.new())
 
 func _setup_uniforms():
 	var uniforms := []
-
+	
 	# Binding 0: Output image
 	var u_output := RDUniform.new()
 	u_output.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE
 	u_output.binding = 0
 	u_output.add_id(output_tex)
 	uniforms.append(u_output)
-
+	
 	# Binding 1: Skybox cubemap (placeholder)
 	var skybox_tex := _create_placeholder_cubemap()
 	var u_skybox := RDUniform.new()
@@ -107,16 +114,16 @@ func _setup_uniforms():
 	u_skybox.add_id(_create_sampler())
 	u_skybox.add_id(skybox_tex)
 	uniforms.append(u_skybox)
-
+	
 	# Binding 2: Disc noise texture (placeholder)
-	var noise_tex := _create_noise_texture()
+	var noise_tex := await _create_noise_texture()
 	var u_noise := RDUniform.new()
 	u_noise.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
 	u_noise.binding = 2
 	u_noise.add_id(_create_sampler())
 	u_noise.add_id(noise_tex)
 	uniforms.append(u_noise)
-
+	
 	# Binding 3: Uniform buffer
 	var params := _create_params_buffer()
 	var u_params := RDUniform.new()
@@ -124,31 +131,31 @@ func _setup_uniforms():
 	u_params.binding = 3
 	u_params.add_id(params)
 	uniforms.append(u_params)
-
+	
 	uniform_set = rd.uniform_set_create(uniforms, shader, 0)
 
 func _create_params_buffer() -> RID:
 	var params := PackedFloat32Array()
-
+	
 	# Black hole
 	params.append_array([black_hole_position.x, black_hole_position.y, black_hole_position.z])
 	params.append(schwarzschild_radius)
 	params.append_array([black_hole_color.r, black_hole_color.g, black_hole_color.b, black_hole_color.a])
-
+	
 	# Camera
 	var cam_pos := camera_position
 	var cam_target := camera_target
-
+	
 	# Try to use scene camera if available
 	if use_scene_camera and get_viewport() and get_viewport().get_camera_3d():
 		cam_pos = get_viewport().get_camera_3d().global_position
 		cam_target = black_hole_position
-
+	
 	params.append_array([cam_pos.x, cam_pos.y, cam_pos.z])
 	params.append(camera_fov)
 	params.append_array([cam_target.x, cam_target.y, cam_target.z])
 	params.append(Time.get_ticks_msec() / 1000.0)
-
+	
 	# Rendering
 	params.append(float(resolution.x))
 	params.append(float(resolution.y))
@@ -158,7 +165,7 @@ func _create_params_buffer() -> RID:
 	params.append(skybox_brightness)
 	params.append(0.0)  # padding
 	params.append(0.0)  # padding
-
+	
 	# Disc
 	params.append(disc_inner_radius)
 	params.append(disc_outer_radius)
@@ -170,7 +177,7 @@ func _create_params_buffer() -> RID:
 	params.append(0.0)  # padding
 	params.append(0.0)  # padding
 	params.append(0.0)  # padding
-
+	
 	# Grid
 	params.append(1.0 if show_grid else 0.0)
 	params.append(grid_spacing)
@@ -181,18 +188,18 @@ func _create_params_buffer() -> RID:
 	params.append(0.0)  # padding
 	params.append(0.0)  # padding
 	params.append_array([grid_color.r, grid_color.g, grid_color.b, grid_color.a])
-
+	
 	# Stars
 	params.append(star_density)
 	params.append(star_brightness)
 	params.append(0.0)  # padding
 	params.append(0.0)  # padding
 	params.append_array([star_color.r, star_color.g, star_color.b, star_color.a])
-
-	# print("Params buffer size: ", params.size() * 4, " bytes")
-	# print("Camera pos: ", cam_pos, " -> target: ", cam_target)
-	# print("Disc enabled: ", enable_disc, " inner: ", disc_inner_radius, " outer: ", disc_outer_radius)
-
+	
+	print("Params buffer size: ", params.size() * 4, " bytes")
+	print("Camera pos: ", cam_pos, " -> target: ", cam_target)
+	print("Disc enabled: ", enable_disc, " inner: ", disc_inner_radius, " outer: ", disc_outer_radius)
+	
 	return rd.uniform_buffer_create(params.size() * 4, params.to_byte_array())
 
 func _create_sampler() -> RID:
@@ -210,7 +217,7 @@ func _create_placeholder_cubemap() -> RID:
 	fmt.array_layers = 6
 	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | \
 					 RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT
-
+	
 	# Create 6 separate faces for cubemap
 	var faces := []
 	for i in 6:
@@ -218,38 +225,43 @@ func _create_placeholder_cubemap() -> RID:
 		data.resize(64 * 64 * 4)
 		data.fill(50)  # Gray placeholder
 		faces.append(data)
-
+	
 	return rd.texture_create(fmt, RDTextureView.new(), faces)
 
 func _create_noise_texture() -> RID:
+	var img: Image
+	
+	if disc_noise_texture and disc_noise_texture.noise:
+		# Force generation if not ready, or get current data
+		img = disc_noise_texture.get_image()
+	
+	# Fallback if image is null (not generated yet)
+	if not img:
+		img = Image.create(256, 256, false, Image.FORMAT_L8)
+		img.fill(Color(0.5, 0.5, 0.5)) # Mid-grey noise fallback
+
 	var fmt := RDTextureFormat.new()
-	fmt.width = 256
-	fmt.height = 256
-	fmt.format = RenderingDevice.DATA_FORMAT_R8_UNORM
+	fmt.width = img.get_width()
+	fmt.height = img.get_height()
+	# The shader sampler is float/norm, so R8_UNORM is fine
+	fmt.format = RenderingDevice.DATA_FORMAT_R8_UNORM 
 	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | \
 					 RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT
-
-	var noise := FastNoiseLite.new()
-	noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	var data := PackedByteArray()
-	for y in 256:
-		for x in 256:
-			var val := (noise.get_noise_2d(x, y) + 1.0) * 0.5
-			data.append(int(val * 255))
-
+	
+	var data := img.get_data()
 	return rd.texture_create(fmt, RDTextureView.new(), [data])
 
-func _process(_delta):
+func _update_shader():
 	if not rd or not pipeline or not uniform_set.is_valid():
 		return
-
+	
 	# Recreate uniform buffer each frame to pick up changes
 	var params := _create_params_buffer()
 	var u_params := RDUniform.new()
 	u_params.uniform_type = RenderingDevice.UNIFORM_TYPE_UNIFORM_BUFFER
 	u_params.binding = 3
 	u_params.add_id(params)
-
+	
 	# Get existing uniforms
 	var uniforms := []
 	var u_output := RDUniform.new()
@@ -257,7 +269,7 @@ func _process(_delta):
 	u_output.binding = 0
 	u_output.add_id(output_tex)
 	uniforms.append(u_output)
-
+	
 	# Reuse existing textures
 	var skybox_tex := _create_placeholder_cubemap()
 	var u_skybox := RDUniform.new()
@@ -266,32 +278,32 @@ func _process(_delta):
 	u_skybox.add_id(_create_sampler())
 	u_skybox.add_id(skybox_tex)
 	uniforms.append(u_skybox)
-
-	var noise_tex := _create_noise_texture()
+	
+	var noise_tex := await _create_noise_texture()
 	var u_noise := RDUniform.new()
 	u_noise.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
 	u_noise.binding = 2
 	u_noise.add_id(_create_sampler())
 	u_noise.add_id(noise_tex)
 	uniforms.append(u_noise)
-
+	
 	uniforms.append(u_params)
-
+	
 	# Recreate uniform set
 	if uniform_set.is_valid():
 		rd.free_rid(uniform_set)
 	uniform_set = rd.uniform_set_create(uniforms, shader, 0)
-
+	
 	# Dispatch compute shader
 	var compute_list := rd.compute_list_begin()
 	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 	rd.compute_list_dispatch(compute_list, ceili(resolution.x / 8.0), ceili(resolution.y / 8.0), 1)
 	rd.compute_list_end()
-
+	
 	rd.submit()
 	rd.sync()
-
+	
 	# Copy result to viewport
 	_display_result()
 
@@ -301,7 +313,7 @@ func _display_result():
 	if byte_data.size() == 0:
 		print("ERROR: No texture data!")
 		return
-
+		
 	var img := Image.create_from_data(resolution.x, resolution.y, false, Image.FORMAT_RGBAH, byte_data)
 	texture = ImageTexture.create_from_image(img)
 
