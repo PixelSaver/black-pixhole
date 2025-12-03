@@ -15,45 +15,67 @@ layout(set = 0, binding = 2) uniform sampler2D disc_noise;
 
 // Parameters uniform buffer
 layout(set = 0, binding = 3, std140) uniform Params {
-    // Black hole
+    // --- Block 1 (Offset 0) ---
     vec3 black_hole_position;
     float schwarzschild_radius;
+
+    // --- Block 2 (Offset 16) ---
     vec4 black_hole_color;
 
-    // Camera
+    // --- Block 3 (Offset 32) ---
     vec3 camera_position;
     float camera_fov;
+
+    // --- Block 4 (Offset 48) ---
     vec3 camera_target;
     float time;
 
-    // Rendering
+    // --- Block 5 (Offset 64) ---
     vec2 resolution;
-    float max_steps;
+    float max_steps;        // Changed to float
     float step_size;
+
+    // --- Block 6 (Offset 80) ---
     float escape_radius;
     float skybox_brightness;
+    vec2 _pad1;             // <--- ADDED to match GDScript padding
 
-    // Disc
+    // --- Block 7 (Offset 96) ---
     float disc_inner_radius;
     float disc_outer_radius;
     float disc_thickness;
     float disc_emission_strength;
-    vec4 disc_inner_color;
-    vec4 disc_outer_color;
-    float enable_disc;
 
-    // Grid
-    float show_grid;
+    // --- Block 8 (Offset 112) ---
+    vec4 disc_inner_color;
+
+    // --- Block 9 (Offset 128) ---
+    vec4 disc_outer_color;
+
+    // --- Block 10 (Offset 144) ---
+    float enable_disc;      // Changed to float
+    vec3 _pad2;             // <--- ADDED to match GDScript padding
+
+    // --- Block 11 (Offset 160) ---
+    float show_grid;        // Changed to float
     float grid_spacing;
     float grid_line_thickness;
     float grid_alpha;
+
+    // --- Block 12 (Offset 176) ---
     float grid_range;
     float grid_warp_offset;
+    vec2 _pad3;             // <--- ADDED to match GDScript padding
+
+    // --- Block 13 (Offset 192) ---
     vec4 grid_color;
 
-    // Stars
+    // --- Block 14 (Offset 208) ---
     float star_density;
     float star_brightness;
+    vec2 _pad4;             // <--- ADDED to match GDScript padding
+
+    // --- Block 15 (Offset 224) ---
     vec4 star_color;
 } params;
 

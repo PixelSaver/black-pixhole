@@ -116,7 +116,7 @@ func _setup_uniforms():
 	uniforms.append(u_skybox)
 	
 	# Binding 2: Disc noise texture (placeholder)
-	var noise_tex := await _create_noise_texture()
+	var noise_tex := _create_noise_texture()
 	var u_noise := RDUniform.new()
 	u_noise.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
 	u_noise.binding = 2
@@ -137,68 +137,82 @@ func _setup_uniforms():
 func _create_params_buffer() -> RID:
 	var params := PackedFloat32Array()
 	
-	# Black hole
+	# Block 1
 	params.append_array([black_hole_position.x, black_hole_position.y, black_hole_position.z])
 	params.append(schwarzschild_radius)
+	
+	# Block 2
 	params.append_array([black_hole_color.r, black_hole_color.g, black_hole_color.b, black_hole_color.a])
 	
-	# Camera
+	# Block 3: Camera
 	var cam_pos := camera_position
 	var cam_target := camera_target
-	
-	# Try to use scene camera if available
-	if use_scene_camera and get_viewport() and get_viewport().get_camera_3d():
+	if use_scene_camera and get_viewport().get_camera_3d():
 		cam_pos = get_viewport().get_camera_3d().global_position
-		cam_target = black_hole_position
+		# If you want camera to look at BH, keep target as BH pos
+		cam_target = black_hole_position 
 	
 	params.append_array([cam_pos.x, cam_pos.y, cam_pos.z])
 	params.append(camera_fov)
+	
+	# Block 4
 	params.append_array([cam_target.x, cam_target.y, cam_target.z])
 	params.append(Time.get_ticks_msec() / 1000.0)
 	
-	# Rendering
+	# Block 5: Rendering
 	params.append(float(resolution.x))
 	params.append(float(resolution.y))
-	params.append(float(max_steps))
+	params.append(float(max_steps)) # Float!
 	params.append(step_size)
+	
+	# Block 6 (With padding)
 	params.append(escape_radius)
 	params.append(skybox_brightness)
-	params.append(0.0)  # padding
-	params.append(0.0)  # padding
+	params.append(0.0) # _pad1.x
+	params.append(0.0) # _pad1.y
 	
-	# Disc
+	# Block 7: Disc Values
 	params.append(disc_inner_radius)
 	params.append(disc_outer_radius)
 	params.append(disc_thickness)
 	params.append(disc_emission_strength)
+	
+	# Block 8 & 9: Colors
 	params.append_array([disc_inner_color.r, disc_inner_color.g, disc_inner_color.b, disc_inner_color.a])
 	params.append_array([disc_outer_color.r, disc_outer_color.g, disc_outer_color.b, disc_outer_color.a])
-	params.append(1.0 if enable_disc else 0.0)
-	params.append(0.0)  # padding
-	params.append(0.0)  # padding
-	params.append(0.0)  # padding
 	
-	# Grid
-	params.append(1.0 if show_grid else 0.0)
+	# Block 10: Disc Enable (With padding)
+	params.append(1.0 if enable_disc else 0.0) # Float!
+	params.append(0.0) # _pad2.x
+	params.append(0.0) # _pad2.y
+	params.append(0.0) # _pad2.z
+	
+	# Block 11: Grid Values
+	params.append(1.0 if show_grid else 0.0) # Float!
 	params.append(grid_spacing)
 	params.append(grid_line_thickness)
 	params.append(grid_alpha)
+	
+	# Block 12: Grid Range (With padding)
 	params.append(grid_range)
-	params.append(schwarzschild_radius)  # grid_warp_offset
-	params.append(0.0)  # padding
-	params.append(0.0)  # padding
+	params.append(schwarzschild_radius) # warp offset
+	params.append(0.0) # _pad3.x
+	params.append(0.0) # _pad3.y
+	
+	# Block 13: Grid Color
 	params.append_array([grid_color.r, grid_color.g, grid_color.b, grid_color.a])
 	
-	# Stars
+	# Block 14: Stars (With padding)
 	params.append(star_density)
 	params.append(star_brightness)
-	params.append(0.0)  # padding
-	params.append(0.0)  # padding
+	params.append(0.0) # _pad4.x
+	params.append(0.0) # _pad4.y
+	
+	# Block 15: Star Color
 	params.append_array([star_color.r, star_color.g, star_color.b, star_color.a])
 	
-	print("Params buffer size: ", params.size() * 4, " bytes")
-	print("Camera pos: ", cam_pos, " -> target: ", cam_target)
-	print("Disc enabled: ", enable_disc, " inner: ", disc_inner_radius, " outer: ", disc_outer_radius)
+	# --- FIX: Add 16 bytes of padding to reach 256 bytes ---
+	params.append_array([0.0, 0.0, 0.0, 0.0])
 	
 	return rd.uniform_buffer_create(params.size() * 4, params.to_byte_array())
 
@@ -279,7 +293,7 @@ func _update_shader():
 	u_skybox.add_id(skybox_tex)
 	uniforms.append(u_skybox)
 	
-	var noise_tex := await _create_noise_texture()
+	var noise_tex := _create_noise_texture()
 	var u_noise := RDUniform.new()
 	u_noise.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
 	u_noise.binding = 2
