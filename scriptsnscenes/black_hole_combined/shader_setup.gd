@@ -115,32 +115,26 @@ func _setup_uniforms():
 	uniforms.append(u_output)
 
 	# Binding 1: Skybox Texture=
-	#var tex = ImageTexture.create_from_image(skybox_texture)
-	#var skybox_rid: RID = RenderingServer.texture_get_rd_texture(tex.get_rid())
-	var skybox_rid: RID = RenderingServer.texture_get_rd_texture(skybox_texture)
-
-	#sampler = _create_sampler()
 	var samp_state = RDSamplerState.new()
 	var samp = rd.sampler_create(samp_state)
 	
-	var image_file : Texture2D = load("res://scriptsnscenes/black_hole_combined/skybox.png")
+	var image_file : Texture2D = load("res://icon.svg")
 	var image := image_file.get_image()
-	image.convert(Image.FORMAT_RGBAF)
+	image.convert(Image.FORMAT_RGBAH)
 	var fmt = RDTextureFormat.new()
 	fmt.width = image.get_width()
 	fmt.height = image.get_height()
-	fmt.format = RenderingDevice.DATA_FORMAT_R32G32B32A32_SFLOAT
+	fmt.format = RenderingDevice.DATA_FORMAT_R16G16B16A16_SFLOAT
 	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_CAN_COPY_FROM_BIT | RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT
 	var view = RDTextureView.new()
 
-	var tex = rd.texture_create(fmt, view, [image.get_data()])
+	skybox_rd_tex = rd.texture_create(fmt, view, [image.get_data()])
 	var sampler_uniform := RDUniform.new()
 	sampler_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
 	sampler_uniform.binding = 1
 	sampler_uniform.add_id(samp)
-	sampler_uniform.add_id(tex)
+	sampler_uniform.add_id(skybox_rd_tex)
 	uniforms.push_back(sampler_uniform)
-	print("skybox %s" % skybox_rid.is_valid())
 
 	# Binding 2: Disc noise texture
 	var noise_tex_rid := _create_noise_texture() # The RID of the texture
