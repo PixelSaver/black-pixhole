@@ -12,6 +12,7 @@ width = 256
 height = 256
 generate_mipmaps = false
 noise = SubResource("FastNoiseLite_c2cox")
+seamless = true
 
 [node name="BHCompute" type="Control"]
 layout_mode = 3
