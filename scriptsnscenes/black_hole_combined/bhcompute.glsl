@@ -72,7 +72,9 @@ layout(set = 0, binding = 3, std140) uniform Params {
 } params;
 
 const float EPS = 1e-6;
+const float THETA_EPS = 1e-6;
 const float PI = 3.14159265359;
+const float CARTESIAN_SWITCH_RADIUS = 0.2; // Radius around Z-axis (R_xy = sqrt(x^2 + y^2))
 
 // --- RK4 STRUCTS ---
 struct Ray {
@@ -87,51 +89,152 @@ Ray initRay(vec3 pos, vec3 dir) {
     vec3 rel = pos - params.black_hole_position;
 
     Ray ray;
-    ray.x = rel.x; ray.y = rel.y; ray.z = rel.z;
+    ray.x = rel.x;
+    ray.y = rel.y;
+    ray.z = rel.z;
     ray.r = length(rel);
 
     ray.theta = acos(clamp(rel.z / max(ray.r, EPS), -1.0, 1.0));
     ray.phi = atan(rel.y, rel.x);
 
-    float dx = dir.x; float dy = dir.y; float dz = dir.z;
+    float dx = dir.x;
+    float dy = dir.y;
+    float dz = dir.z;
 
-    float st = sin(ray.theta);
-    float ct = cos(ray.theta);
+    // --- NEW: Clamp theta for robust trig calculations (THETA_EPS = 1e-6) ---
+
+    float theta_clamped = clamp(ray.theta, THETA_EPS, PI - THETA_EPS);
+
+    float st = sin(theta_clamped); // Use clamped st for safety
+    float ct = cos(theta_clamped); // Use clamped ct
     float sp = sin(ray.phi);
     float cp = cos(ray.phi);
 
-    st = max(st, 1e-2); // Clamp to reduce noise at poles
+    // Old line: st = max(st, 1e-4); // Delete this line
 
     ray.dr = st * cp * dx + st * sp * dy + ct * dz;
     ray.dtheta = (ct * cp * dx + ct * sp * dy - st * dz) / max(ray.r, EPS);
-    ray.dphi = (-sp * dx + cp * dy) / (max(ray.r, EPS) * max(st, EPS));
 
-    ray.L = ray.r * ray.r * max(st, EPS) * ray.dphi;
+    // CRITICAL: dphi calculation now uses the safe, non-zero 'st'
+    ray.dphi = (-sp * dx + cp * dy) / (max(ray.r, EPS) * st);
+
+    ray.L = ray.r * ray.r * st * ray.dphi; // Use safe 'st' here
     float f = 1.0 - params.schwarzschild_radius / max(ray.r, EPS);
     float dt_dL = sqrt((ray.dr * ray.dr) / max(f, EPS) +
-                       ray.r * ray.r * (ray.dtheta * ray.dtheta +
-                       st * st * ray.dphi * ray.dphi));
+                ray.r * ray.r * (ray.dtheta * ray.dtheta +
+                        st * st * ray.dphi * ray.dphi));
     ray.E = f * dt_dL;
 
     return ray;
 }
 
 void geodesicRHS(Ray ray, out vec3 d1, out vec3 d2) {
-    float r = ray.r; float theta = ray.theta;
-    float dr = ray.dr; float dtheta = ray.dtheta; float dphi = ray.dphi;
+    float r = ray.r;
+    float theta = ray.theta;
+    float dr = ray.dr;
+    float dtheta = ray.dtheta;
+    float dphi = ray.dphi;
+
+    // --- FINAL FIX: Use a larger Epsilon for the singularity guard ---
+    float theta_clamped = clamp(theta, THETA_EPS, PI - THETA_EPS);
 
     float f = 1.0 - params.schwarzschild_radius / max(r, EPS);
     float dt_dL = ray.E / max(f, EPS);
-    float st = sin(theta); float ct = cos(theta);
+
+    // Use the clamped angle to derive the trigonometric functions
+    float st = sin(theta_clamped); // sin(theta) - ALWAYS > 0
+    float ct = cos(theta_clamped); // cos(theta)
 
     d1 = vec3(dr, dtheta, dphi);
-    d2.x = -(params.schwarzschild_radius / (2.0 * r*r)) * f * dt_dL * dt_dL
-         + (params.schwarzschild_radius / (2.0 * r*r * max(f, EPS))) * dr * dr
-         + r * (dtheta*dtheta + st*st*dphi*dphi);
-    d2.y = -2.0*dr*dtheta/r + st*ct*dphi*dphi;
-    d2.z = -2.0*dr*dphi/r - 2.0*ct/max(st, EPS) * dtheta * dphi;
+
+    // d^2r/dL^2 (Radial Acceleration) - Unchanged
+    d2.x = -(params.schwarzschild_radius / (2.0 * r * r)) * f * dt_dL * dt_dL
+            + (params.schwarzschild_radius / (2.0 * r * r * max(f, EPS))) * dr * dr
+            + r * (dtheta * dtheta + st * st * dphi * dphi);
+
+    // d^2theta/dL^2 (Polar Acceleration) - Unchanged
+    d2.y = -2.0 * dr * dtheta / r + st * ct * dphi * dphi;
+
+    // d^2phi/dL^2: The singularity is here: -2 * (ct / st) * dtheta * dphi
+    // --- POLAR STABILIZATION: The key modification is here ---
+
+    // We explicitly calculate the unstable term (Gamma^phi_theta_phi):
+    float gamma_term = ct / max(st, 1e-6); // Use a safety max for sin(theta)
+
+    // Apply a smooth step or clamp to the gamma term near the poles.
+    // This is the Theta-Averaging concept: damping the derivative near the pole.
+    // If we are extremely close to the pole, force the angular contribution to zero.
+    float stability_factor = 1.;
+    // if (st < .1) {
+    //     // Use a smooth step to ramp down the unstable term as we approach the pole (st=0)
+    //     stability_factor = smoothstep(0.0, .1, st);
+    // }
+
+    // Final d^2phi/dL^2:
+    d2.z = -2.0 * dr * dphi / r - 2.0 * gamma_term * dtheta * dphi * stability_factor;
+
+    // --- ORIGINAL NEW STABILIZATION (Keep this as a final failsafe) ---
+    // If the ray is extremely close to the axis, the change in phi is negligible.
+    if (st < 1e-3) {
+        d2.z = 0.0;
+        // Also stabilize dtheta to prevent the ray from "orbiting" the pole
+        d2.y = -2.0 * dr * dtheta / r;
+    }
 }
 
+// --- CARTESIAN RK LOGIC ---
+vec3 getCartesianAcceleration(Ray ray, float r_val, vec3 pos_cart) {
+    float Rs = params.schwarzschild_radius;
+    float f = 1.0 - Rs / max(r_val, EPS);
+
+    // E and L are conserved and are *correctly* calculated during initRay and RK steps.
+    // They are defined by the (r, theta, phi) state and must be preserved.
+
+    // Calculate dr/dL, the radial velocity magnitude, from the Cartesian components
+    // (This is the dot product of the position vector (pos_cart) and the velocity vector
+    //  represented by (ray.dr, ray.dtheta, ray.dphi) transformed to Cartesian velocity,
+    //  but since dX/dL is easier to use, we calculate the dot product of pos and dX/dL)
+
+    // Convert current angular derivatives to Cartesian velocity (dX/dL, dY/dL, dZ/dL)
+    // To do this properly, we need the initial Cartesian velocity dX/dL, dY/dL, dZ/dL.
+    // Since we don't store it, we use the simpler radial acceleration formula:
+
+    // The radial part of the acceleration (d^2r/dL^2) from the spherical geodesic equation:
+    // This value is computed inside geodesicRHS in d2.x
+    // We will re-calculate it here using *current* spherical state (r, dr, dtheta, dphi)
+
+    float st = sin(ray.theta);
+    float dr = ray.dr;
+    float dtheta = ray.dtheta;
+    float dphi = ray.dphi;
+    float dt_dL = ray.E / max(f, EPS);
+
+    float acc_r = -(Rs / (2.0 * r_val * r_val)) * f * dt_dL * dt_dL
+            + (Rs / (2.0 * r_val * r_val * max(f, EPS))) * dr * dr
+            + r_val * (dtheta * dtheta + st * st * dphi * dphi);
+
+    // The vector acceleration is purely radial: a = acc_r * (pos / r)
+    return acc_r * normalize(pos_cart);
+}
+// --- CARTESIAN RK LOGIC ---
+// Helper function to convert spherical derivatives (dr, dtheta, dphi) to Cartesian velocity (dX/dL, dY/dL, dZ/dL)
+// The Jacobian transformation J * (dr, dtheta, dphi)
+vec3 getCartesianVelocity(Ray ray) {
+    float st = sin(ray.theta);
+    float ct = cos(ray.theta);
+    float sp = sin(ray.phi);
+    float cp = cos(ray.phi);
+    float r = ray.r;
+
+    // dX/dL
+    float dX_dL = st * cp * ray.dr + r * ct * cp * ray.dtheta - r * st * sp * ray.dphi;
+    // dY/dL
+    float dY_dL = st * sp * ray.dr + r * ct * sp * ray.dtheta + r * st * cp * ray.dphi;
+    // dZ/dL
+    float dZ_dL = ct * ray.dr - r * st * ray.dtheta;
+
+    return vec3(dX_dL, dY_dL, dZ_dL);
+}
 void rk4Step(inout Ray ray, float dL) {
     Ray r_temp;
     vec3 k1a, k1b, k2a, k2b, k3a, k3b, k4a, k4b;
@@ -139,32 +242,46 @@ void rk4Step(inout Ray ray, float dL) {
     geodesicRHS(ray, k1a, k1b);
 
     r_temp = ray;
-    r_temp.r += 0.5 * dL * k1a.x; r_temp.theta += 0.5 * dL * k1a.y; r_temp.phi += 0.5 * dL * k1a.z;
-    r_temp.dr += 0.5 * dL * k1b.x; r_temp.dtheta += 0.5 * dL * k1b.y; r_temp.dphi += 0.5 * dL * k1b.z;
+    r_temp.r += 0.5 * dL * k1a.x;
+    r_temp.theta += 0.5 * dL * k1a.y;
+    r_temp.phi += 0.5 * dL * k1a.z;
+    r_temp.dr += 0.5 * dL * k1b.x;
+    r_temp.dtheta += 0.5 * dL * k1b.y;
+    r_temp.dphi += 0.5 * dL * k1b.z;
     geodesicRHS(r_temp, k2a, k2b);
 
     r_temp = ray;
-    r_temp.r += 0.5 * dL * k2a.x; r_temp.theta += 0.5 * dL * k2a.y; r_temp.phi += 0.5 * dL * k2a.z;
-    r_temp.dr += 0.5 * dL * k2b.x; r_temp.dtheta += 0.5 * dL * k2b.y; r_temp.dphi += 0.5 * dL * k2b.z;
+    r_temp.r += 0.5 * dL * k2a.x;
+    r_temp.theta += 0.5 * dL * k2a.y;
+    r_temp.phi += 0.5 * dL * k2a.z;
+    r_temp.dr += 0.5 * dL * k2b.x;
+    r_temp.dtheta += 0.5 * dL * k2b.y;
+    r_temp.dphi += 0.5 * dL * k2b.z;
     geodesicRHS(r_temp, k3a, k3b);
 
     r_temp = ray;
-    r_temp.r += dL * k3a.x; r_temp.theta += dL * k3a.y; r_temp.phi += dL * k3a.z;
-    r_temp.dr += dL * k3b.x; r_temp.dtheta += dL * k3b.y; r_temp.dphi += dL * k3b.z;
+    r_temp.r += dL * k3a.x;
+    r_temp.theta += dL * k3a.y;
+    r_temp.phi += dL * k3a.z;
+    r_temp.dr += dL * k3b.x;
+    r_temp.dtheta += dL * k3b.y;
+    r_temp.dphi += dL * k3b.z;
     geodesicRHS(r_temp, k4a, k4b);
 
-    ray.r += dL * (k1a.x + 2.0*k2a.x + 2.0*k3a.x + k4a.x) / 6.0;
-    ray.theta += dL * (k1a.y + 2.0*k2a.y + 2.0*k3a.y + k4a.y) / 6.0;
-    ray.phi += dL * (k1a.z + 2.0*k2a.z + 2.0*k3a.z + k4a.z) / 6.0;
-    ray.dr += dL * (k1b.x + 2.0*k2b.x + 2.0*k3b.x + k4b.x) / 6.0;
-    ray.dtheta += dL * (k1b.y + 2.0*k2b.y + 2.0*k3b.y + k4b.y) / 6.0;
-    ray.dphi += dL * (k1b.z + 2.0*k2b.z + 2.0*k3b.z + k4b.z) / 6.0;
+    ray.r += dL * (k1a.x + 2.0 * k2a.x + 2.0 * k3a.x + k4a.x) / 6.0;
+    ray.theta += dL * (k1a.y + 2.0 * k2a.y + 2.0 * k3a.y + k4a.y) / 6.0;
+    ray.phi += dL * (k1a.z + 2.0 * k2a.z + 2.0 * k3a.z + k4a.z) / 6.0;
+    ray.dr += dL * (k1b.x + 2.0 * k2b.x + 2.0 * k3b.x + k4b.x) / 6.0;
+    ray.dtheta += dL * (k1b.y + 2.0 * k2b.y + 2.0 * k3b.y + k4b.y) / 6.0;
+    ray.dphi += dL * (k1b.z + 2.0 * k2b.z + 2.0 * k3b.z + k4b.z) / 6.0;
 
     ray.theta = clamp(ray.theta, 0.0, PI);
     ray.r = max(ray.r, EPS);
 
-    float st = sin(ray.theta); float ct = cos(ray.theta);
-    float sp = sin(ray.phi); float cp = cos(ray.phi);
+    float st = sin(ray.theta);
+    float ct = cos(ray.theta);
+    float sp = sin(ray.phi);
+    float cp = cos(ray.phi);
 
     ray.x = ray.r * st * cp;
     ray.y = ray.r * st * sp;
@@ -173,40 +290,117 @@ void rk4Step(inout Ray ray, float dL) {
 
 // New RK2 (Midpoint Method) Step
 void rk2Step(inout Ray ray, float dL) {
-    Ray r_temp;
-    vec3 k1a, k1b, k2a, k2b;
+    // Current Cartesian state
+    vec3 pos_cart = vec3(ray.x, ray.y, ray.z);
+    float r_val = ray.r;
+    float R_xy = length(pos_cart.xy); // Radial distance from Z-axis
 
-    // K1: Evaluate RHS at the current position (ray)
-    geodesicRHS(ray, k1a, k1b);
+    // If we are near the pole, integrate in Cartesian space
+    if (R_xy < CARTESIAN_SWITCH_RADIUS) {
 
-    // Midpoint: Estimate state at t + dL/2 using K1
-    r_temp = ray;
-    r_temp.r += 0.5 * dL * k1a.x; r_temp.theta += 0.5 * dL * k1a.y; r_temp.phi += 0.5 * dL * k1a.z;
-    r_temp.dr += 0.5 * dL * k1b.x; r_temp.dtheta += 0.5 * dL * k1b.y; r_temp.dphi += 0.5 * dL * k1b.z;
+        // 1. K1 (Current State)
+        vec3 V_k1 = getCartesianVelocity(ray);
+        vec3 A_k1 = getCartesianAcceleration(ray, r_val, pos_cart);
 
-    // K2: Evaluate RHS at the midpoint (r_temp)
-    geodesicRHS(r_temp, k2a, k2b);
+        // 2. Midpoint State (temp)
+        Ray r_mid = ray;
 
-    // Final Step: Use K2 to step from the original position
-    ray.r += dL * k2a.x;
-    ray.theta += dL * k2a.y;
-    ray.phi += dL * k2a.z;
-    ray.dr += dL * k2b.x;
-    ray.dtheta += dL * k2b.y;
-    ray.dphi += dL * k2b.z;
+        // Propagate the position and velocity to the midpoint (0.5 * dL)
+        vec3 P_mid = pos_cart + V_k1 * (0.5 * dL);
+        vec3 V_mid = V_k1 + A_k1 * (0.5 * dL); // Velocity at midpoint
 
-    // Update Spherical <-> Cartesian
-    ray.theta = clamp(ray.theta, 0.0, PI);
-    ray.r = max(ray.r, EPS);
+        // Update the temporary Ray struct with midpoint Cartesian coordinates
+        r_mid.x = P_mid.x;
+        r_mid.y = P_mid.y;
+        r_mid.z = P_mid.z;
 
-    float st = sin(ray.theta); float ct = cos(ray.theta);
-    float sp = sin(ray.phi); float cp = cos(ray.phi);
+        // Reconstruct midpoint spherical coordinates (needed for acceleration calculation)
+        float r_mid_val = length(P_mid);
+        r_mid.r = r_mid_val;
+        r_mid.theta = acos(clamp(P_mid.z / max(r_mid_val, EPS), -1.0, 1.0));
+        r_mid.phi = atan(P_mid.y, P_mid.x);
 
-    ray.x = ray.r * st * cp;
-    ray.y = ray.r * st * sp;
-    ray.z = ray.r * ct;
+        // 3. K2 (Midpoint Acceleration)
+        vec3 A_k2 = getCartesianAcceleration(r_mid, r_mid_val, P_mid);
+
+        // 4. Final Step (Proper RK2 Update)
+        // P_new = P_old + V_mid * dL (using V_mid, which is V_k1 + A_k1 * 0.5 * dL)
+        pos_cart = pos_cart + V_mid * dL;
+
+        // V_new = V_old + A_k2 * dL (using A_k2 from the midpoint)
+        vec3 V_new = V_k1 + A_k2 * dL; // <<< Declared V_new here!
+
+        // --- UPDATE RAY STATE ---
+        ray.x = pos_cart.x;
+        ray.y = pos_cart.y;
+        ray.z = pos_cart.z;
+
+        // Reconstruct spherical coordinates
+        r_val = length(pos_cart);
+        ray.r = r_val;
+        ray.theta = acos(clamp(pos_cart.z / max(r_val, EPS), -1.0, 1.0));
+        ray.phi = atan(pos_cart.y, pos_cart.x);
+
+        // Reconstruct spherical velocities (V_new -> (dr, dtheta, dphi))
+        // This projection is critical for a smooth transition back to the spherical solver.
+        float st = sin(ray.theta);
+        float ct = cos(ray.theta);
+        float sp = sin(ray.phi);
+        float cp = cos(ray.phi);
+
+        // Spherical basis vectors in Cartesian space:
+        vec3 e_r = normalize(pos_cart);
+        vec3 e_theta = vec3(ct * cp, ct * sp, -st);
+        // Ensure e_phi is orthogonal to the Z-axis (pos_cart.xy) near the pole
+        vec3 e_phi = vec3(-sp, cp, 0.0);
+
+        // Projection:
+        ray.dr = dot(V_new, e_r);
+        // Note: dtheta = (V_new . e_theta) / r
+        ray.dtheta = dot(V_new, e_theta) / max(ray.r, EPS);
+        // Note: dphi = (V_new . e_phi) / (r * sin(theta)) - Use clamped theta (st)
+        // If 'st' is very small, we must stabilize 'dphi'.
+        ray.dphi = dot(V_new, e_phi) / (max(ray.r, EPS) * max(st, 1e-4));
+    } else {
+        // --- SPHERICAL INTEGRATION (Original Code) ---
+        // ... (Spherical RK2 step remains unchanged) ...
+        Ray r_temp;
+        vec3 k1a, k1b, k2a, k2b;
+
+        geodesicRHS(ray, k1a, k1b);
+
+        r_temp = ray;
+        r_temp.r += 0.5 * dL * k1a.x;
+        r_temp.theta += 0.5 * dL * k1a.y;
+        r_temp.phi += 0.5 * dL * k1a.z;
+        r_temp.dr += 0.5 * dL * k1b.x;
+        r_temp.dtheta += 0.5 * dL * k1b.y;
+        r_temp.dphi += 0.5 * dL * k1b.z;
+        geodesicRHS(r_temp, k2a, k2b);
+
+        ray.r += dL * k2a.x;
+        ray.theta += dL * k2a.y;
+        ray.phi += dL * k2a.z;
+        ray.dr += dL * k2b.x;
+        ray.dtheta += dL * k2b.y;
+        ray.dphi += dL * k2b.z;
+
+        // Final Spherical to Cartesian Conversion (with clamping)
+        ray.theta = clamp(ray.theta, 0.0, PI);
+        ray.r = max(ray.r, EPS);
+
+        float theta_clamped = clamp(ray.theta, THETA_EPS, PI - THETA_EPS);
+
+        float st = sin(theta_clamped);
+        float ct = cos(theta_clamped);
+        float sp = sin(ray.phi);
+        float cp = cos(ray.phi);
+
+        ray.x = ray.r * st * cp;
+        ray.y = ray.r * st * sp;
+        ray.z = ray.r * ct;
+    }
 }
-
 float getAdaptiveStepSize(float r) {
     float normalized_r = r / params.schwarzschild_radius;
     if (normalized_r < 2.0) return params.step_size * 0.01;
@@ -217,11 +411,31 @@ float getAdaptiveStepSize(float r) {
 
 // --- DISC (VOLUMETRIC) ---
 // R = disc_outer_radius, R0 = disc_inner_radius, fade is derived from R/R0
-float accretion_density(float l, float t, float y, float R, float R0) {
-    // Simplified log(l) * 1.5 to map radius to a noise UV
-    float noise_r_coord = log(max(l, 1.0)) * 1.5;
-    float n = texture(noise_sampler, vec2(0.5 * t / PI + params.time * 0.2, noise_r_coord)).r;
+float accretion_density(float l, float phi, float y, float R, float R0) {
+    // 1. Azimuthal/Angle (U) Coordinate for Noise:
+    // phi_norm maps [-PI, PI] to [0, 1] for a continuous wrap-around.
+    float phi_norm = (phi / (2.0 * PI)) + 0.5;
 
+    // 2. Radial (V) Coordinate for Noise:
+    // Base V-coordinate uses a logarithmic stretch of the radius (l).
+    float noise_base_v = log(max(l, 1.0)) * 1.5;
+
+    // **NEW RADIAL VARIATION LOGIC:**
+    // Use the base U (angle + time) to slightly offset the V-coordinate.
+    // This makes the 'radial' distance sampled from the noise texture vary
+    // based on the angle (phi), breaking the perfect radial symmetry.
+    float angle_time_coord = phi_norm + params.time * 0.1;
+    float radial_offset = texture(noise_sampler, vec2(angle_time_coord, 0.5)).r * 0.2; // Sample U-axis for a shifting offset
+
+    // The final V-coordinate is the stretched radius (noise_base_v)
+    // plus a small offset that varies continuously around the disk (radial_offset).
+    float noise_v_coord = noise_base_v + radial_offset;
+
+    // 3. Noise Lookup:
+    // U is the angle + time. V is the radius + angular offset.
+    float n = texture(noise_sampler, vec2(angle_time_coord, noise_v_coord * 0.25)).r; // Scale V down for a softer pattern
+
+    // Original radial falloff (d0):
     // Normalized distance from inner edge (l-R0) and falloff near outer edge (1 - l/R)
     float fade = (R - R0) * 0.5; // Use half the width for the 'fade' parameter
     float d0 = pow(max(1.0 - l / R, 0.0) * clamp((l - R0) / fade + 1.0, 0.0, 1.0), 1.5);
@@ -316,7 +530,7 @@ bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStren
 
         if (prevY * yNow <= 0.0) {
             float frac = abs(prevY) / (abs(prevY) + abs(yNow) + 1e-6);
-            vec3 hit = mix(p, origin + dir * (t - (tFar-tNear)/float(samples)), frac);
+            vec3 hit = mix(p, origin + dir * (t - (tFar - tNear) / float(samples)), frac);
 
             float lineStr;
             if (isOnGridLine(hit.xz, lineStr)) {
@@ -349,76 +563,76 @@ void main() {
 
     vec3 ray_dir = normalize(uv.x * right - uv.y * up + forward);
     Ray ray = initRay(params.camera_position, ray_dir);
-    
-        vec3 prev_pos_cart = vec3(ray.x, ray.y, ray.z);
-        vec3 total_disc_color = vec3(0.0);
-        float total_disc_alpha = 0.0;
-        vec3 color_out = vec3(0.05, 0.05, 0.08); // Background color
-    
-        bool hitBH = false;
-        bool straightHitGrid = false;
-        float straightGridStrength = 0.0;
 
-        // --- STRAIGHT RAY GRID CHECK ---
-        if (params.show_grid > 0.5) {
-            straightHitGrid = checkGridIntersectionStraightRay(params.camera_position, ray_dir, straightGridStrength);
-        }
+    vec3 prev_pos_cart = vec3(ray.x, ray.y, ray.z);
+    vec3 total_disc_color = vec3(0.0);
+    float total_disc_alpha = 0.0;
+    vec3 color_out = vec3(0.05, 0.05, 0.08); // Background color
 
-        // --- RAY MARCHING (Geodesic Integration) ---
-        for (float i = 0.0; i < params.max_steps; i += 1.0) {
-            if (ray.r <= params.schwarzschild_radius * 1.01) {
-                hitBH = true;
-                break;
-            }
+    bool hitBH = false;
+    bool straightHitGrid = false;
+    float straightGridStrength = 0.0;
 
-            float step_val = getAdaptiveStepSize(ray.r);
-            Ray prev_ray = ray;
-            rk2Step(ray, step_val); // Use RK2 for performance
-        
-            vec3 new_pos_cart = vec3(ray.x, ray.y, ray.z);
-        
-            // --- VOLUME RENDERING STEP ---
-            vec3 disc_step_color = renderDiscVolume(prev_ray, ray, step_val);
-
-            // Compositing: Assume total_disc_alpha is always small enough to not hit max
-            total_disc_color += disc_step_color;
-
-            prev_pos_cart = new_pos_cart;
-            if (ray.r > params.escape_radius) break;
-        }
-
-        // --- COMPOSITING ---
-
-        // Black Hole
-        if (hitBH) {
-            color_out = params.black_hole_color.rgb;
-        } else {
-            // Background (Skybox or Stars)
-            // Map the final ray direction to UV coordinates
-            vec3 final_dir = normalize(vec3(ray.x, ray.y, ray.z) - params.black_hole_position);
-            
-            // Convert 3D direction vector to 2D UV coordinates
-            float phi = atan(final_dir.z, final_dir.x); // Longitude (-pi to pi)
-            float theta = acos(final_dir.y);         // Latitude (0 to pi)
-            
-            // Map to UV (0 to 1)
-            float u = phi / (2.0 * 3.14159265) + 0.5;
-            float v = theta / 3.14159265;
-            
-            // Sample the 2D texture
-            vec3 sky_color = texture(skybox_sampler, vec2(u, v)).rgb;
-
-            color_out = sky_color;
-
-            // Spacetime Grid (Straight Ray Check)
-            if (straightHitGrid) {
-                color_out = mix(color_out, params.grid_color.rgb, straightGridStrength);
-            }
-        }
-
-        // 4. Accretion Disc (Blended over BH/Sky/Grid)
-        // The disc is drawn over everything else
-        color_out = total_disc_color + color_out; // Additive blending for emission
-
-        imageStore(output_image, pixel_coords, vec4(color_out, 1.0));
+    // --- STRAIGHT RAY GRID CHECK ---
+    if (params.show_grid > 0.5) {
+        straightHitGrid = checkGridIntersectionStraightRay(params.camera_position, ray_dir, straightGridStrength);
     }
+
+    // --- RAY MARCHING (Geodesic Integration) ---
+    for (float i = 0.0; i < params.max_steps; i += 1.0) {
+        if (ray.r <= params.schwarzschild_radius * 1.01) {
+            hitBH = true;
+            break;
+        }
+
+        float step_val = getAdaptiveStepSize(ray.r);
+        Ray prev_ray = ray;
+        rk2Step(ray, step_val); // Use RK2 for performance
+
+        vec3 new_pos_cart = vec3(ray.x, ray.y, ray.z);
+
+        // --- VOLUME RENDERING STEP ---
+        vec3 disc_step_color = renderDiscVolume(prev_ray, ray, step_val);
+
+        // Compositing: Assume total_disc_alpha is always small enough to not hit max
+        total_disc_color += disc_step_color;
+
+        prev_pos_cart = new_pos_cart;
+        if (ray.r > params.escape_radius) break;
+    }
+
+    // --- COMPOSITING ---
+
+    // Black Hole
+    if (hitBH) {
+        color_out = params.black_hole_color.rgb;
+    } else {
+        // Background (Skybox or Stars)
+        // Map the final ray direction to UV coordinates
+        vec3 final_dir = normalize(vec3(ray.x, ray.y, ray.z) - params.black_hole_position);
+
+        // Convert 3D direction vector to 2D UV coordinates
+        float phi = atan(final_dir.z, final_dir.x); // Longitude (-pi to pi)
+        float theta = acos(final_dir.y); // Latitude (0 to pi)
+
+        // Map to UV (0 to 1)
+        float u = phi / (2.0 * 3.14159265) + 0.5;
+        float v = theta / 3.14159265;
+
+        // Sample the 2D texture
+        vec3 sky_color = texture(skybox_sampler, vec2(u, v)).rgb;
+
+        color_out = sky_color;
+
+        // Spacetime Grid (Straight Ray Check)
+        if (straightHitGrid) {
+            color_out = mix(color_out, params.grid_color.rgb, straightGridStrength);
+        }
+    }
+
+    // 4. Accretion Disc (Blended over BH/Sky/Grid)
+    // The disc is drawn over everything else
+    color_out = total_disc_color + color_out; // Additive blending for emission
+
+    imageStore(output_image, pixel_coords, vec4(color_out, 1.0));
+}

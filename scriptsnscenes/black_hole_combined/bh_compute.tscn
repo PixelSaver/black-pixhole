@@ -1,10 +1,11 @@
-[gd_scene load_steps=5 format=3 uid="uid://bajm6dqruukuw"]
+[gd_scene load_steps=6 format=3 uid="uid://bajm6dqruukuw"]
 
 [ext_resource type="Script" uid="uid://0i4lx2raarcw" path="res://scriptsnscenes/black_hole_combined/bh_compute.gd" id="1_stwnt"]
 [ext_resource type="Script" uid="uid://bbbea7qb6p6kx" path="res://scriptsnscenes/black_hole_combined/shader_setup.gd" id="2_c2cox"]
+[ext_resource type="Texture2D" uid="uid://cjxx4o1famh2t" path="res://icon.svg" id="3_83yca"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_c2cox"]
-fractal_octaves = 4
+frequency = 0.0175
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_83yca"]
 width = 256
@@ -31,10 +32,18 @@ script = ExtResource("1_stwnt")
 
 [node name="ShaderSetup" type="Node" parent="ColorRect"]
 script = ExtResource("2_c2cox")
-max_steps = 2000
-step_size = 0.49999999999999856
+max_steps = 600
+step_size = 1.999999999999994
+escape_radius = 112.8246799999998
+skybox_brightness = 0.752269999999998
+black_hole_color = Color(0, 0, 0, 1)
+disc_thickness = 11.999999999999964
+disc_emission_strength = 0.39999999999999913
 disc_noise_texture = SubResource("NoiseTexture2D_83yca")
-grid_spacing = 0.8587699999999989
+show_grid = false
+grid_spacing = 4.590909999999988
 grid_line_thickness = 0.49999999999999856
 grid_alpha = 0.999999999999997
 grid_range = 99.99999999999972
+skybox_texture = ExtResource("3_83yca")
+star_brightness = 4.999999999999985

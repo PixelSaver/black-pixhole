@@ -16,8 +16,8 @@ var params_buffer: RID
 # Rendering
 @export_group("Rendering")
 @export var resolution := Vector2i(1280, 720)
-@export_range(100, 2000) var max_steps := 500
-@export_range(0.01, 1.0) var step_size := 0.1
+@export_range(10, 2000) var max_steps := 500
+@export_range(0.01, 10.0) var step_size := 0.1
 @export_range(50.0, 500.0) var escape_radius := 100.0
 @export_range(0.1, 5.0) var skybox_brightness := 1.5
 
@@ -39,7 +39,7 @@ var params_buffer: RID
 @export var enable_disc := true
 @export_range(1.0, 20.0) var disc_inner_radius := 4.0
 @export_range(5.0, 50.0) var disc_outer_radius := 12.0
-@export_range(0.1, 5.0) var disc_thickness := 0.3
+@export_range(0.1, 50.0) var disc_thickness := 0.3
 @export_range(0.1, 20.0) var disc_emission_strength := 5.0
 @export var disc_inner_color := Color(1.0, 0.3, 0.1, 1.0)
 @export var disc_outer_color := Color(1.0, 0.8, 0.3, 1.0)
@@ -57,7 +57,7 @@ var params_buffer: RID
 
 # Stars
 @export_group("Stars")
-@onready var skybox_texture: Texture2D = preload("res://scriptsnscenes/black_hole_combined/skybox.png")
+@export var skybox_texture: Texture2D = preload("res://scriptsnscenes/black_hole_combined/skybox_75.png")
 var skybox_rd_tex: RID
 @export_range(0.0, 0.01) var star_density := 0.002
 @export_range(0.0, 5.0) var star_brightness := 2.0
@@ -118,7 +118,7 @@ func _setup_uniforms():
 	var samp_state = RDSamplerState.new()
 	var samp = rd.sampler_create(samp_state)
 	
-	var image_file : Texture2D = load("res://icon.svg")
+	var image_file : Texture2D = skybox_texture
 	var image := image_file.get_image()
 	image.convert(Image.FORMAT_RGBAH)
 	var fmt = RDTextureFormat.new()
