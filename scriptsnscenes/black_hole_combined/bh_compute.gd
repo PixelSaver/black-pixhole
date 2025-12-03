@@ -3,7 +3,7 @@ extends TextureRect
 @onready var shader_setup : ShaderSetup = $ShaderSetup
 @export var min_distance := 10.0
 @export var max_distance := 1000.0
-@export var zoom_speed := 0.1
+@export var zoom_speed := 1.
 var camera_pos : Vector3 = Vector3(0,8,10)
 var target := Vector3.ZERO
 var distance := 60

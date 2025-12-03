@@ -1,7 +1,16 @@
-[gd_scene load_steps=3 format=3 uid="uid://bajm6dqruukuw"]
+[gd_scene load_steps=5 format=3 uid="uid://bajm6dqruukuw"]
 
 [ext_resource type="Script" uid="uid://0i4lx2raarcw" path="res://scriptsnscenes/black_hole_combined/bh_compute.gd" id="1_stwnt"]
 [ext_resource type="Script" uid="uid://bbbea7qb6p6kx" path="res://scriptsnscenes/black_hole_combined/shader_setup.gd" id="2_c2cox"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_c2cox"]
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_83yca"]
+width = 256
+height = 256
+generate_mipmaps = false
+noise = SubResource("FastNoiseLite_c2cox")
 
 [node name="BHCompute" type="Control"]
 layout_mode = 3
@@ -24,3 +33,8 @@ script = ExtResource("1_stwnt")
 script = ExtResource("2_c2cox")
 max_steps = 2000
 step_size = 0.49999999999999856
+disc_noise_texture = SubResource("NoiseTexture2D_83yca")
+grid_spacing = 0.8587699999999989
+grid_line_thickness = 0.49999999999999856
+grid_alpha = 0.999999999999997
+grid_range = 99.99999999999973
