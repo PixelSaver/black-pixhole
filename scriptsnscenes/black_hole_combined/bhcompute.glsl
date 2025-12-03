@@ -166,28 +166,6 @@ bool checkGridIntersection(vec3 p0, vec3 p1, out float strength) {
     return false;
 }
 
-// ========== STAR FIELD ==========
-float hash21(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 78.233);
-    return fract(p.x * p.y);
-}
-
-float getStarBrightness(vec3 dir) {
-    float phi = atan(dir.y, dir.x);
-    float theta = acos(clamp(dir.z, -1.0, 1.0));
-
-    vec2 coord = vec2((phi + PI) / (2.0 * PI), theta / PI) * 50.0;
-    float h = hash21(coord);
-
-    if (h < params.star_density) {
-        vec2 frac_pos = fract(coord);
-        float dist = length(frac_pos - 0.5);
-        return exp(-dist * dist * 300.0) * (h / params.star_density);
-    }
-    return 0.0;
-}
-
 // ========== MAIN COMPUTE ==========
 void main() {
     ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
@@ -287,10 +265,6 @@ void main() {
         // Sample skybox
         vec3 sky = texture(skybox, final_dir).rgb;
         sky = pow(sky, vec3(2.2)) * params.skybox_brightness;
-
-        // Add stars
-        float star_val = getStarBrightness(final_dir) * params.star_brightness;
-        sky += params.star_color.rgb * star_val;
 
         color += sky * transmission;
     }

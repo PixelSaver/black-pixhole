@@ -223,13 +223,11 @@ func _display_result():
 	var img := Image.create_from_data(resolution.x, resolution.y, false, Image.FORMAT_RGBAH, byte_data)
 	
 	# Sample center pixel for debug
-	var center_color = img.get_pixel(resolution.x / 2, resolution.y / 2)
-	print("Center pixel: ", center_color)
 	
 	# Display on a sprite or viewport
 	texture = ImageTexture.create_from_image(img)
-	img.save_png("res://black_hole_output.png")
-	print("Saved to black_hole_output.png")
+	#img.save_png("res://black_hole_output.png")
+	#print("Saved to black_hole_output.png")
 
 func _exit_tree():
 	if rd:
