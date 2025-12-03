@@ -39,4 +39,5 @@ pause={
 }
 
 [rendering]
+
 driver/driver_name="vulkan"

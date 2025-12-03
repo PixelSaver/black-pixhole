@@ -57,8 +57,8 @@ var params_buffer: RID
 
 # Stars
 @export_group("Stars")
-@onready var skybox_texture = preload("uid://b0askaxfx5mvr")
-#@export var skybox_texture : Texture2D
+@onready var skybox_texture: Texture2D = preload("res://scriptsnscenes/black_hole_combined/skybox.png")
+var skybox_rd_tex: RID
 @export_range(0.0, 0.01) var star_density := 0.002
 @export_range(0.0, 5.0) var star_brightness := 2.0
 @export var star_color := Color(1.0, 1.0, 1.0, 1.0)
@@ -72,8 +72,7 @@ func _ready():
 	_setup_shader()
 	_setup_textures()
 	
-	_upload_skybox_when_ready()
-	skybox_tex_local = await _create_local_skybox_texture(skybox_texture.get_image())
+	await get_tree().process_frame
 	_setup_uniforms()
 
 	# Debug: print camera info
@@ -115,13 +114,33 @@ func _setup_uniforms():
 	u_output.add_id(output_tex)
 	uniforms.append(u_output)
 
-	# Binding 1: Skybox Texture
-	var u_skybox = RDUniform.new()
-	u_skybox.binding = 1
-	u_skybox.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
-	u_skybox.add_id(sampler)
-	u_skybox.add_id(_get_skybox_rid_for_shader())
-	uniforms.append(u_skybox)
+	# Binding 1: Skybox Texture=
+	#var tex = ImageTexture.create_from_image(skybox_texture)
+	#var skybox_rid: RID = RenderingServer.texture_get_rd_texture(tex.get_rid())
+	var skybox_rid: RID = RenderingServer.texture_get_rd_texture(skybox_texture)
+
+	#sampler = _create_sampler()
+	var samp_state = RDSamplerState.new()
+	var samp = rd.sampler_create(samp_state)
+	
+	var image_file : Texture2D = load("res://scriptsnscenes/black_hole_combined/skybox.png")
+	var image := image_file.get_image()
+	image.convert(Image.FORMAT_RGBAF)
+	var fmt = RDTextureFormat.new()
+	fmt.width = image.get_width()
+	fmt.height = image.get_height()
+	fmt.format = RenderingDevice.DATA_FORMAT_R32G32B32A32_SFLOAT
+	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_CAN_COPY_FROM_BIT | RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT
+	var view = RDTextureView.new()
+
+	var tex = rd.texture_create(fmt, view, [image.get_data()])
+	var sampler_uniform := RDUniform.new()
+	sampler_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+	sampler_uniform.binding = 1
+	sampler_uniform.add_id(samp)
+	sampler_uniform.add_id(tex)
+	uniforms.push_back(sampler_uniform)
+	print("skybox %s" % skybox_rid.is_valid())
 
 	# Binding 2: Disc noise texture
 	var noise_tex_rid := _create_noise_texture() # The RID of the texture
@@ -141,53 +160,6 @@ func _setup_uniforms():
 	uniforms.append(u_params)
 
 	uniform_set = rd.uniform_set_create(uniforms, shader, 0)
-
-# ------------------------------------------------------------------
-# NEW: This function keeps trying until the image is actually ready
-# ------------------------------------------------------------------
-func _upload_skybox_when_ready():
-	if skybox_ready:
-		return
-
-	if not skybox_texture:
-		push_error("skybox_texture is null!")
-		return
-
-	var img := skybox_texture.get_image()
-	if img and img.get_width() > 0 and img.get_height() > 0:
-		# SUCCESS – finally got the real image data
-		if skybox_tex_local.is_valid():
-			rd.free_rid(skybox_tex_local)
-
-		skybox_tex_local = await _create_local_skybox_texture(img)
-		skybox_ready = true
-		print("Skybox successfully uploaded to local RD (", img.get_width(), "×", img.get_height(), ")")
-	else:
-		# Still not ready → try again next frame
-		get_tree().process_frame.connect(_upload_skybox_when_ready, CONNECT_ONE_SHOT)
-
-# ------------------------------------------------------------------
-# Separate function that ALWAYS returns a valid RID (black fallback if needed)
-# ------------------------------------------------------------------
-func _get_skybox_rid_for_shader() -> RID:
-	if skybox_ready and skybox_tex_local.is_valid():
-		return skybox_tex_local
-
-	# Return a tiny valid black texture so the shader never gets an invalid RID
-	if not skybox_tex_local.is_valid():
-		var black := Image.create(1, 1, false, Image.FORMAT_RGB8)
-		black.fill(Color(0,0,0))
-
-		var tf := RDTextureFormat.new()
-		tf.width = 1
-		tf.height = 1
-		tf.format = RenderingDevice.DATA_FORMAT_R8G8B8A8_UNORM
-		tf.usage_bits = RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT
-		tf.texture_type = RenderingDevice.TEXTURE_TYPE_2D
-
-		skybox_tex_local = rd.texture_create(tf, RDTextureView.new(), [black.get_data()])
-
-	return skybox_tex_local
 
 func _create_params_buffer() -> RID:
 	var params := PackedFloat32Array()
@@ -271,42 +243,19 @@ func _create_params_buffer() -> RID:
 	return rd.uniform_buffer_create(params.size() * 4, params.to_byte_array())
 
 func _create_sampler() -> RID:
+	# Use the member variable if it's already created
+	if sampler.is_valid():
+		return sampler
+		
 	var sampler_state := RDSamplerState.new()
+	sampler_state.repeat_u = RenderingDevice.SAMPLER_REPEAT_MODE_REPEAT
+	sampler_state.repeat_v = RenderingDevice.SAMPLER_REPEAT_MODE_REPEAT
 	sampler_state.min_filter = RenderingDevice.SAMPLER_FILTER_LINEAR
 	sampler_state.mag_filter = RenderingDevice.SAMPLER_FILTER_LINEAR
 
 	# Store the RID in the member variable
-	return rd.sampler_create(sampler_state)
-
-func _create_local_skybox_texture(img:Image) -> RID:
-	
-	# Sometimes get_image() returns null on first frame (especially with .hdr imports)
-	if not img:
-		push_warning("Skybox image not ready yet, waiting one frame...")
-		await get_tree().process_frame
-		img = skybox_texture.get_image()
-	
-	if not img:
-		push_error("Still no image! Creating fallback.")
-		img = Image.create(2, 1, false, Image.FORMAT_RGB8)
-		img.fill(Color(0.1, 0.0, 0.2))  # Dark purple fallback
-
-	var tf := RDTextureFormat.new()
-	tf.format = RenderingDevice.DATA_FORMAT_R8G8B8A8_UNORM    # Change if you use HDR!
-	tf.width = img.get_width()
-	tf.height = img.get_height()
-	tf.depth = 1
-	tf.array_layers = 1
-	tf.texture_type = RenderingDevice.TEXTURE_TYPE_2D
-	tf.usage_bits = RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | RenderingDevice.TEXTURE_USAGE_CAN_COPY_FROM_BIT
-
-	var view := RDTextureView.new()
-	# Optional: if source is sRGB (like .png/.jpg), enable SRGB
-	view.format_override = RenderingDevice.DATA_FORMAT_R8G8B8A8_SRGB
-
-	var texture_data: PackedByteArray = img.get_data()
-
-	return rd.texture_create(tf, view, [texture_data])
+	sampler = rd.sampler_create(sampler_state) # Note: Assign to the member 'sampler'
+	return sampler
 
 func _create_noise_texture() -> RID:
 	var img: Image
@@ -351,18 +300,16 @@ func _update_shader():
 	uniforms.append(u_output)
 
 	# Binding 1: Skybox Texture
-	var skybox_rid: RID
-	if skybox_texture and skybox_texture.get_rid().is_valid():
-		skybox_rid = skybox_texture.get_rid()
-
-	var sampler = _create_sampler()
-
-	var u_skybox := RDUniform.new()
-	u_skybox.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
-	u_skybox.binding = 1
-	u_skybox.add_id(sampler)
-	u_skybox.add_id(skybox_rid)
-	uniforms.append(u_skybox)
+	var samp_state = RDSamplerState.new()
+	var samp = rd.sampler_create(samp_state)
+	
+	
+	var sampler_uniform := RDUniform.new()
+	sampler_uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+	sampler_uniform.binding = 1
+	sampler_uniform.add_id(samp)
+	sampler_uniform.add_id(skybox_rd_tex)
+	uniforms.push_back(sampler_uniform)
 
 	# Binding 2: Disc noise texture
 	var noise_tex_rid := _create_noise_texture()

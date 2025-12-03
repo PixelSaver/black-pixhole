@@ -330,24 +330,6 @@ bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStren
     return false;
 }
 
-// --- STARS ---
-float hash21(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 78.233);
-    return fract(p.x * p.y);
-}
-
-float getStarBrightness(vec3 dir) {
-    float phi = atan(dir.y, dir.x);
-    float theta = acos(clamp(dir.z, -1.0, 1.0));
-    vec2 hashCoord = vec2((phi + PI) / (2.0 * PI), theta / PI) * 50.0;
-    float h = hash21(hashCoord);
-    float brightness = smoothstep(0.0, params.star_density, h);
-    vec2 fracPos = fract(hashCoord);
-    float dist = length(fracPos - 0.5);
-    return exp(-pow(dist / 0.05, 2.0) * 8.0) * brightness;
-}
-
 // --- MAIN ---
 void main() {
     ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);

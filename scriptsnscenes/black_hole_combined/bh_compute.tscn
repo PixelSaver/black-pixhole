@@ -37,4 +37,4 @@ disc_noise_texture = SubResource("NoiseTexture2D_83yca")
 grid_spacing = 0.8587699999999989
 grid_line_thickness = 0.49999999999999856
 grid_alpha = 0.999999999999997
-grid_range = 99.99999999999973
+grid_range = 99.99999999999972
