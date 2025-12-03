@@ -1,14 +1,7 @@
-[gd_scene load_steps=4 format=3 uid="uid://bajm6dqruukuw"]
+[gd_scene load_steps=3 format=3 uid="uid://bajm6dqruukuw"]
 
 [ext_resource type="Script" uid="uid://0i4lx2raarcw" path="res://scriptsnscenes/black_hole_combined/bh_compute.gd" id="1_stwnt"]
-
-[sub_resource type="FastNoiseLite" id="FastNoiseLite_stwnt"]
-
-[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_c2cox"]
-width = 256
-height = 256
-generate_mipmaps = false
-noise = SubResource("FastNoiseLite_stwnt")
+[ext_resource type="Script" uid="uid://bbbea7qb6p6kx" path="res://scriptsnscenes/black_hole_combined/shader_setup.gd" id="2_c2cox"]
 
 [node name="BHCompute" type="Control"]
 layout_mode = 3
@@ -26,11 +19,8 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_stwnt")
-max_steps = 1000
-step_size = 1.0
-escape_radius = 262.17532999999935
-skybox_brightness = 3.48863999999999
-black_hole_color = Color(1, 0, 0, 1)
-camera_position = Vector3(0, 10, 20)
-disc_noise_texture = SubResource("NoiseTexture2D_c2cox")
-star_density = 0.0
+
+[node name="ShaderSetup" type="Node" parent="ColorRect"]
+script = ExtResource("2_c2cox")
+max_steps = 2000
+step_size = 0.49999999999999856
