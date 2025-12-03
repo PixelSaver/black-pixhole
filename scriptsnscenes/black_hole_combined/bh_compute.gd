@@ -12,6 +12,10 @@ var yaw := 0.0
 var pitch := 0.0
 var rotation_speed := 0.01
 var fov := 60.0
+var needs_update := false
+
+func _ready() -> void:
+	return
 
 # Called when the user provides input (e.g., mouse move/scroll)
 func _gui_input(event: InputEvent) -> void:
@@ -22,31 +26,24 @@ func _gui_input(event: InputEvent) -> void:
 		yaw -= event.relative.x * rotation_speed 
 		pitch = clamp(pitch + event.relative.y * rotation_speed, -PI/2.0 + 0.001, PI/2.0 - 0.001)
 		_update_camera_state()
+		needs_update = true
 		
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			target_distance = clamp(target_distance * 0.95, min_distance, max_distance)
+			needs_update = true
+			
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			target_distance = clamp(target_distance * 1.05, min_distance, max_distance)
-	
-	# After input, call update to reflect changes immediately
-	shader_setup._setup_uniforms()
-	# Also submit the image for rendering if your draw call isn't in _process
+			needs_update = true
+	_update_camera_state()
+
+func _process(_delta: float) -> void:
 	shader_setup._update_shader()
-
-
-# Called every frame to smooth the zoom/distance
-func _process(delta):
-	# Smoothly interpolate distance toward target_distance
-	distance = lerp(distance, target_distance, zoom_speed * delta)
-	# Check if a significant update is needed
-	if abs(distance - target_distance) > 0.001:
-		_update_camera_state()
-		shader_setup._setup_uniforms()
-		shader_setup._update_shader()
 
 # Calculates the spherical coordinates into a cartesian position
 func _update_camera_state():
+	distance = target_distance
 	var x = distance * cos(pitch) * sin(yaw)
 	var y = distance * sin(pitch)
 	var z = distance * cos(pitch) * cos(yaw)
@@ -55,7 +52,7 @@ func _update_camera_state():
 	# Position is offset from target
 	camera_pos = target + v # Note: Your original logic was target - v, but v is the offset
 	shader_setup.camera_position = camera_pos
-	print("camera pos: %s" % camera_pos)
+	#print("camera pos: %s" % camera_pos)
 
 # This is called by _setup_uniforms() to get the current camera data
 #func get_camera_params() -> Array:
