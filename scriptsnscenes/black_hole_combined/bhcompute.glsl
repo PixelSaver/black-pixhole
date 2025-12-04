@@ -45,7 +45,7 @@ layout(set = 0, binding = 3, std140) uniform Params {
     vec4 disc_outer_color;
 
     // Block 10 (Offset 144)
-    float enable_disc;
+    float show_disc;
     vec3 _pad2;
 
     // Block 11 (Offset 160)
@@ -63,8 +63,8 @@ layout(set = 0, binding = 3, std140) uniform Params {
     vec4 grid_color;
 
     // Block 14 (Offset 208)
-    float nebula_radius;
-    float nebula_height;
+    float show_nebula;
+    float _nebula_height;
     float nebula_intensity_scale;
     float _nebula_step_size_start; // Optional: If you want to control the initial step size (0.0265)
 
@@ -269,7 +269,7 @@ float accretion_density(float l, float phi, float y, float R, float R0) {
 
 // renderDiscVolume remains UNCHANGED
 vec3 renderDiscVolume(Ray r_start, Ray r_end, float ray_t) {
-    if (params.enable_disc < 0.5) return vec3(0.0);
+    if (params.show_disc < 0.5) return vec3(0.0);
 
     vec3 color_accum = vec3(0.0);
     float alpha_accum = 0.0;
@@ -498,8 +498,9 @@ mat4 rotationZ(float angle) {
 // 'lp' is the position relative to the nebula center.
 // Returns the accumulated color for the step.
 vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, float et, vec3 camera_pos) {
-    float NEBULA_RADIUS = params.nebula_radius;
-    float NEBULA_HEIGHT = params.nebula_height;
+    if (params.show_nebula < 0.5) return vec3(0.0);
+    float NEBULA_RADIUS = 100.0;
+    float NEBULA_HEIGHT = 20.0;
 
     // 1. Define Rotation Matrices (Same as before)
     mat4 R_x = rotationX(params.nebula_rotation_x);
@@ -630,16 +631,20 @@ void main() {
         vec3 new_pos_cart = vec3(ray.x, ray.y, ray.z);
 
         // --- VOLUME RENDERING STEP (Accretion Disc) ---
-        vec3 disc_step_color = renderDiscVolume(prev_ray, ray, step_val);
-        total_disc_color += disc_step_color;
+        if (params.show_disc > 0.5) {
+            vec3 disc_step_color = renderDiscVolume(prev_ray, ray, step_val);
+            total_disc_color += disc_step_color;
+        }
 
         // --- VOLUME RENDERING STEP (Nebula) ---
-        vec3 mid_pos = mix(prev_pos_cart, new_pos_cart, 0.5);
-        vec3 pos_rel_bh = mid_pos - params.black_hole_position;
-        vec3 lp = pos_rel_bh - params.nebula_pos; // Position relative to nebula center
-
-        vec3 nebula_step_color = renderNebulaVolume(lp, step_val, ray_transmittance, et, params.camera_position);
-        total_nebula_color += nebula_step_color;
+        if (params.show_nebula > 0.5) {
+            vec3 mid_pos = mix(prev_pos_cart, new_pos_cart, 0.5);
+            vec3 pos_rel_bh = mid_pos - params.black_hole_position;
+            vec3 lp = pos_rel_bh - params.nebula_pos; // Position relative to nebula center
+    
+            vec3 nebula_step_color = renderNebulaVolume(lp, step_val, ray_transmittance, et, params.camera_position);
+            total_nebula_color += nebula_step_color;
+        }
 
         prev_pos_cart = new_pos_cart;
         if (ray.r > params.escape_radius) break;

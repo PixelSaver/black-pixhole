@@ -47,7 +47,7 @@ var noise3d_tex: RID
 @export_range(1.0, 20.0) var disc_inner_radius := 4.0
 @export_range(5.0, 50.0) var disc_outer_radius := 12.0
 @export_range(0.1, 50.0) var disc_thickness := 0.3
-@export_range(0.1, 20.0) var disc_emission_strength := 5.0
+@export_range(0.1, 100.0) var disc_emission_strength := 5.0
 @export var disc_inner_color := Color(1.0, 0.3, 0.1, 1.0)
 @export var disc_outer_color := Color(1.0, 0.8, 0.3, 1.0)
 @export var disc_noise_texture: NoiseTexture2D
@@ -64,10 +64,9 @@ var noise3d_tex: RID
 
 # 🌌 Galaxy/Nebula (REPLACING Stars)
 @export_group("Volumetric Galaxy")
+@export var show_galaxy := true
 @export_range(0.1, 100.) var galaxy_scale := 1.
 @export var galaxy_rotation := Vector3.ZERO
-@export_range(1.0, 500.0) var galaxy_radius := 300.0
-@export_range(1.0, 100.0) var galaxy_height := 100.0
 @export_range(0.00001, 10.0) var galaxy_intensity_scale := 1.0
 @export var galaxy_pos := Vector3(10, 0, 0)
 
@@ -260,7 +259,7 @@ func _get_params_data() -> PackedByteArray:
 	params.append(disc_inner_radius)
 	params.append(disc_outer_radius)
 	params.append(disc_thickness)
-	params.append(disc_emission_strength)
+	params.append(disc_emission_strength * 0.01)
 
 	# Block 8 & 9: Disc Colors
 	params.append_array([disc_inner_color.r, disc_inner_color.g, disc_inner_color.b, disc_inner_color.a])
@@ -293,10 +292,10 @@ func _get_params_data() -> PackedByteArray:
 
 	# Block 14: Galaxy (Replaces Star Density/Brightness)
 	# The Galaxy effect uses three float values: Radius, Height, and Intensity Scale.
-	params.append(galaxy_radius)
-	params.append(galaxy_height)
+	params.append(1.0 if show_galaxy else 0.0)
+	params.append(0.0)
 	params.append(galaxy_intensity_scale)
-	params.append(.05) # _nebula_step_size_start (Padding to fill the vec4/Block 14)
+	params.append(.01) # _nebula_step_size_start (Padding to fill the vec4/Block 14)
 	
 	# Block 15 
 	params.append_array([
