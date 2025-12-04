@@ -438,73 +438,65 @@ float snoise(vec3 v) {
     return 0.5;
 }
 // New function to calculate emission and transmittance for a single geodesic step
-vec4 nebulaStep(vec3 lp, float step_size, float et) {
+// --- New Nebula Function ---
+// Calculates emission and updates ray transmittance for a single geodesic step.
+// 'lp' is the position relative to the nebula center.
+// Returns the accumulated color for the step.
+vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, float et, vec3 camera_pos) {
     float NEBULA_RADIUS = params.nebula_radius;
     float NEBULA_HEIGHT = params.nebula_height;
 
     float l = length(lp.xz);
     if (l > NEBULA_RADIUS || abs(lp.y) > NEBULA_HEIGHT * 0.5) {
-        return vec4(0.0, 0.0, 0.0, 0.0); // Outside bounds
+        return vec3(0.0);
     }
 
-    // --- 1. Noise Sampling (Approximation of Original Textures) ---
-    // n: Placeholder for the 2D noise (using snoise on XZ plane)
-    // float n = clamp(snoise(lp.xz * 0.35 + et * 0.5), 0.0, 1.0);
-    float n = clamp(snoise(vec3(lp.xz * 0.35, 0.0) + et * 0.5), 0.0, 1.0);
+    // --- 1. COORDINATE PORTING (Exact Match to Spatial Shader) ---
+    float ang = atan(lp.z, lp.x);
 
-    // n3: Time-varying, lower frequency noise (approx. n3 from original)
-    vec3 n3_coord = lp * 1.5 + vec3(et, 0.0, 0.0) * 5.0;
-    float n3 = snoise(n3_coord);
+    // 2D polar noise texture sample
+    float n = clamp(-max(0.0, 0.8 - l) + texture(noise_sampler, vec2(ang / (2.0 * PI) + et * 0.5, l * 0.35)).r, 0.0, 1.0);
 
-    // n3o: High-frequency spatial noise (approx. n3o from original)
-    float n3o = snoise(lp * 5.0);
+    // 3D polar noise texture sample (using snoise as texture3D placeholder)
+    vec3 n3_coord_polar = vec3(1.5 * ang / PI + et, lp.y, log(max(l * 5.0, 0.01)));
+    float n3 = snoise(n3_coord_polar);
 
-    // --- 2. Density Calculations (Lines 34-39) ---
-    // We use a simplified version of the spiral distortion for performance/simplicity
+    // 3D cartesian noise texture sample (using snoise as texture3D placeholder)
+    float ct = cos(et * 1.5), st = sin(et * 1.5);
+    vec3 n3o_coord_cart = vec3(lp.x * ct - lp.z * st, lp.y, lp.x * st + lp.z * ct) * 0.5;
+    float n3o = snoise(n3o_coord_cart);
+
+    // --- 2. DENSITY & COLOR CALCULATION (Exact Match) ---
     vec3 nlp = lp + 0.12 * (l + 1.0) * (n - 0.5) * 0.5;
     float nl = length(nlp.xz);
-    float r = nl * 1.85 - 1.2;
+    float r_density = nl * 1.85 - 1.2;
     float t = mod(atan(nlp.z, nlp.x), PI);
-    float diff = abs(mod((r - t + 0.5 * PI), (PI)) - 0.5 * PI); // distance from spiral
+    float diff = abs(mod((r_density - t + 0.5 * PI), (PI)) - 0.5 * PI);
 
-    // Helper variables
     float l2 = l * l;
     float lpy2 = lp.y * lp.y;
-    float factor = (1.0 + tanh(3.0 * r)) * 0.6 * max(0.0, 0.42 - pow(diff, 2.0));
+    float factor = (1.0 + tanh(3.0 * r_density)) * 0.6 * max(0.0, 0.42 - pow(diff, 2.0));
 
-    // Density components (from lines 36-39)
     float spiral_density = (0.5 * max(0.0, 1.15 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - sqrt(0.045 * l2 + 24.0 * lpy2)) * (1.5 * n + 0.55) * 0.4;
     float core_density = 40.0 * pow(max(0.0, 0.45 - sqrt(0.3 * lp.x * lp.x + lp.z * lp.z + 3.0 * lp.y * lp.y)), 2.0) + 5.0 * pow(max(0.0, 0.65 - sqrt(0.45 * lp.x * lp.x + lp.z * lp.z + 4.0 * lpy2)), 1.5) * (n + 0.5);
     float particle_density = (0.3 * max(0.0, 1.25 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - pow(0.045 * l2 + 16.0 * lpy2, 4.0)) * (1.0 - abs(4.0 * lp.y)) * 400.0;
     float dust_density = pow(max(0.0, n3 - 0.2), 1.5) * particle_density;
     float gas_density = pow(max(0.0, abs(n3o - 0.55) - 0.12), 2.0) * particle_density * 1.2 * max(0.0, 1.0 - 0.35 * diff - pow(0.2 * l, 0.4)) * (0.5 - abs(2.5 * lp.y));
 
-    // --- 3. Accumulation / Emission (Lines 41-42) ---
-
-    float total_density = spiral_density + core_density + dust_density + gas_density;
-
-    // Use a small constant for proximity since distance(campos, lp) is not easily available here
-    // In the compute shader, we are always tracing from a position. We'll use 1.0 as a proxy.
-    // float prox = tanh(distance(campos, lp) * 0.4);
-    float prox = 1.0;
-
-    // Opacity/Transmittance (T in the original shader)
-    float opacity = 1.0 - exp(-(total_density) * prox * step_size * 0.2);
-
-    // Star Color (same mix as original, but using 'l' as radius)
     vec3 star_col = mix(vec3(0.45, 0.6, 1.0), vec3(1.0, 0.5, 0.2), pow(max(0.0, 1.0 - 0.2 * l), 1.8));
+    float total_density = spiral_density + core_density + dust_density + gas_density;
+    float prox = tanh(distance(camera_pos, lp + params.black_hole_position + params.nebula_pos) * 0.4);
 
-    // Calculate transmittance for this step (how much light gets through)
-    float step_transmittance = exp(-(total_density) * prox * step_size * 0.2);
+    // --- 3. ACCUMULATION (Backwards Raytracing / Forward Volume Integration) ---
+    // Luminosity (L) from this step, attenuated by the volume behind it (ray_transmittance)
+    vec3 emission = prox * ray_transmittance * (star_col * vec3(spiral_density * 12.0 + core_density * 6.0 + vec3(0.7, 0.4, 0.3) * dust_density * 0.02) +
+                vec3(1.0, 0.3, 0.3) * gas_density * 8.0) * step_val * 2.0;
 
-    // Calculate emission (light emitted by this volume segment)
-    vec3 emission = prox * (star_col * vec3(spiral_density * 12.0 + core_density * 6.0 + vec3(0.7, 0.4, 0.3) * dust_density * 0.02) + vec3(1.0, 0.3, 0.3) * gas_density * 8.0) * step_size * 2.0;
+    // Transmittance (T) is attenuated by the current volume segment
+    ray_transmittance *= exp(-(total_density) * prox * step_val * 0.2);
 
-    // Apply intensity scale
-    emission *= params.nebula_intensity_scale;
-
-    // Return emission and the transmittance (NOT opacity)
-    return vec4(emission, step_transmittance) * 0.5 + 0.5;
+    // Apply the user-controlled intensity scale
+    return emission * params.nebula_intensity_scale;
 }
 // --- MAIN ---
 void main() {
@@ -512,7 +504,7 @@ void main() {
     ivec2 res = ivec2(params.resolution);
     if (pixel_coords.x >= res.x || pixel_coords.y >= res.y) return;
 
-    // --- CAMERA LOGIC ---
+    // ... (Camera and Initial Ray Setup remains the same) ...
     vec3 forward = normalize(params.camera_target - params.camera_position);
     vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
     vec3 up = cross(right, forward);
@@ -528,13 +520,12 @@ void main() {
 
     vec3 prev_pos_cart = vec3(ray.x, ray.y, ray.z);
     vec3 total_disc_color = vec3(0.0);
-    float total_disc_alpha = 0.0;
-    vec3 color_out = vec3(0.05, 0.05, 0.08); // Background color
+    vec3 color_out = vec3(0.05, 0.05, 0.08);
 
-    // --- New Nebula Accumulators ---
+    // --- Nebula Accumulators ---
     vec3 total_nebula_color = vec3(0.0);
-    float ray_transmittance = 1.0; // T starts at 1.0 (fully transparent)
-    float et = params.time * 0.05; // Time coordinate for noise
+    float ray_transmittance = 1.0;
+    float et = params.time * 0.05;
 
     bool hitBH = false;
     bool straightHitGrid = false;
@@ -554,120 +545,54 @@ void main() {
 
         float step_val = getAdaptiveStepSize(ray.r);
         Ray prev_ray = ray;
-        rk4Step(ray, step_val); // Switched to rk4Step for better accuracy/stability
+        rk4Step(ray, step_val);
 
         vec3 new_pos_cart = vec3(ray.x, ray.y, ray.z);
 
-        // --- VOLUME RENDERING STEP ---
+        // --- VOLUME RENDERING STEP (Accretion Disc) ---
         vec3 disc_step_color = renderDiscVolume(prev_ray, ray, step_val);
-
         total_disc_color += disc_step_color;
 
         // --- VOLUME RENDERING STEP (Nebula) ---
-            vec3 mid_pos = mix(prev_pos_cart, new_pos_cart, 0.5);
-            vec3 pos_rel_bh = mid_pos - params.black_hole_position;
-        
-            // Apply nebula position offset to get local galaxy coordinates (lp)
-            vec3 lp = pos_rel_bh - params.nebula_pos;
-            
-            // Use nebula radius/height parameters
-            float NEBULA_RADIUS = params.nebula_radius;
-            float NEBULA_HEIGHT = params.nebula_height;
-        
-            float l = length(lp.xz);
-            if (l <= NEBULA_RADIUS && abs(lp.y) <= NEBULA_HEIGHT * 0.5) {
-                // --- 1. COORDINATE PORTING (Exact Match to Spatial Shader) ---
-                float ang = atan(lp.z, lp.x);
-                float et = params.time * 0.05;
-        
-                // 2D polar noise texture sample (Using provided 2D noise sampler)
-                float n = clamp(-max(0.0, 0.8 - l) + texture(noise_sampler, vec2(ang / (2.0 * PI) + et * 0.5, l * 0.35)).r, 0.0, 1.0);
-        
-                // 3D polar noise texture sample (Need to use the Simplex noise since no 3D texture is bound)
-                // NOTE: The original shader used texture(noise3D, vec3(..., lp.y, log(l * 5.0))).r;
-                // The compute shader must use the snoise placeholder since a 3D texture is not available.
-                // We substitute the texture lookup with the snoise(lp * factor) approximation from the compute shader's prelude.
-                vec3 n3_coord_polar = vec3(1.5 * ang / PI + et, lp.y, log(max(l * 5.0, 0.01)));
-                float n3 = snoise(n3_coord_polar);
-                
-                // 3D cartesian noise texture sample
-                float ct = cos(et * 1.5), st = sin(et * 1.5);
-                vec3 n3o_coord_cart = vec3(lp.x * ct - lp.z * st, lp.y, lp.x * st + lp.z * ct) * 0.5;
-                float n3o = snoise(n3o_coord_cart); // Using snoise as placeholder for texture3D
-        
-                // --- 2. DENSITY & COLOR CALCULATION (Exact Match) ---
-                vec3 nlp = lp + 0.12 * (l + 1.0) * (n - 0.5) * 0.5;
-                float nl = length(nlp.xz);
-                float r_density = nl * 1.85 - 1.2; // Renamed 'r' to 'r_density' to avoid collision with Ray.r
-                float t = mod(atan(nlp.z, nlp.x), PI);
-                float diff = abs(mod((r_density - t + 0.5 * PI), (PI)) - 0.5 * PI); 
-        
-                float l2 = l * l;
-                float lpy2 = lp.y * lp.y;
-                float factor = (1.0 + tanh(3.0 * r_density)) * 0.6 * max(0.0, 0.42 - pow(diff, 2.0));
-        
-                float spiral_density = (0.5 * max(0.0, 1.15 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - sqrt(0.045 * l2 + 24.0 * lpy2)) * (1.5 * n + 0.55) * 0.4;
-                float core_density = 40.0 * pow(max(0.0, 0.45 - sqrt(0.3 * lp.x * lp.x + lp.z * lp.z + 3.0 * lp.y * lp.y)), 2.0) + 5.0 * pow(max(0.0, 0.65 - sqrt(0.45 * lp.x * lp.x + lp.z * lp.z + 4.0 * lpy2)), 1.5) * (n + 0.5);
-                float particle_density = (0.3 * max(0.0, 1.25 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - pow(0.045 * l2 + 16.0 * lpy2, 4.0)) * (1.0 - abs(4.0 * lp.y)) * 400.0;
-                float dust_density = pow(max(0.0, n3 - 0.2), 1.5) * particle_density;
-                float gas_density = pow(max(0.0, abs(n3o - 0.55) - 0.12), 2.0) * particle_density * 1.2 * max(0.0, 1.0 - 0.35 * diff - pow(0.2 * l, 0.4)) * (0.5 - abs(2.5 * lp.y));
-        
-                vec3 star_col = mix(vec3(0.45, 0.6, 1.0), vec3(1.0, 0.5, 0.2), pow(max(0.0, 1.0 - 0.2 * l), 1.8));
-                float total_density = spiral_density + core_density + dust_density + gas_density;
-                float prox = tanh(distance(params.camera_position, mid_pos) * 0.4);
-        
-                // --- 3. ACCUMULATION (Correct Backwards Raytracing Order) ---
-                
-                // Luminosity (L): Light *emitted* from this step, attenuated by the volume *behind* it (ray_transmittance)
-                vec3 emission = prox * ray_transmittance * (star_col * vec3(spiral_density * 12.0 + core_density * 6.0 + vec3(0.7, 0.4, 0.3) * dust_density * 0.02) + vec3(1.0, 0.3, 0.3) * gas_density * 8.0) * step_val * 2.0;
-        
-                // Transmittance (T): How much light is blocked by the volume in this step
-                // T is updated *after* L is calculated, ensuring L uses the accumulated transmittance from the previous steps.
-                ray_transmittance *= exp(-(total_density) * prox * step_val * 0.2);
-                
-                total_nebula_color += emission * params.nebula_intensity_scale;
-            }
+        vec3 mid_pos = mix(prev_pos_cart, new_pos_cart, 0.5);
+        vec3 pos_rel_bh = mid_pos - params.black_hole_position;
+        vec3 lp = pos_rel_bh - params.nebula_pos; // Position relative to nebula center
+
+        vec3 nebula_step_color = renderNebulaVolume(lp, step_val, ray_transmittance, et, params.camera_position);
+        total_nebula_color += nebula_step_color;
 
         prev_pos_cart = new_pos_cart;
         if (ray.r > params.escape_radius) break;
     }
 
     // --- COMPOSITING ---
-
-    // Black Hole
     if (hitBH) {
         color_out = params.black_hole_color.rgb;
     } else {
-        // Background (Skybox or Stars)
+        // ... (Background/Skybox sampling remains the same) ...
         vec3 final_dir = normalize(vec3(ray.x, ray.y, ray.z) - params.black_hole_position);
-
-        // Convert 3D direction vector to 2D UV coordinates
         float phi = atan(final_dir.z, final_dir.x);
         float theta = acos(final_dir.y);
-
-        // Map to UV (0 to 1)
-        float u = phi / (2.0 * 3.14159265) + 0.5;
-        float v = theta / 3.14159265;
-
-        // Sample the 2D texture
+        float u = phi / (2.0 * PI) + 0.5;
+        float v = theta / PI;
         vec3 sky_color = texture(skybox_sampler, vec2(u, v)).rgb;
 
-        color_out = sky_color;
+        color_out = sky_color * params.skybox_brightness;
 
         // Spacetime Grid (Straight Ray Check)
         if (straightHitGrid) {
             color_out = mix(color_out, params.grid_color.rgb, straightGridStrength);
         }
 
-        // 1. Blend the **accumulated nebula light** over the background.
-        // We multiply the background by the ray's remaining transmittance (T)
-        // to simulate the light being blocked by the nebula in the foreground.
-
+        // 1. Blend the accumulated nebula light over the background.
         color_out = total_nebula_color + color_out * ray_transmittance;
     }
 
-    // 4. Accretion Disc (Blended over BH/Sky/Grid) - Additive for emission
+    // 4. Accretion Disc (Blended over BH/Sky/Grid/Nebula) - Additive for emission
     color_out = total_disc_color + color_out;
+
+    // Optional: Clamp/Tone Map to prevent oversaturation
+    color_out = clamp(color_out, 0.0, 4.0);
 
     imageStore(output_image, pixel_coords, vec4(color_out, 1.0));
 }
