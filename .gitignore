@@ -24,3 +24,4 @@ exports/
 generated_shader_controls.txt
 tool_scripts/shader_param_reader.gd
 tool_scripts/shader_param_reader.gd.uid
+*.tmp

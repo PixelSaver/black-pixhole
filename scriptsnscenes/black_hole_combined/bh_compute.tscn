@@ -33,37 +33,22 @@ zoom_speed = 1.0999999999999968
 
 [node name="ShaderSetup" type="Node" parent="ColorRect"]
 script = ExtResource("2_c2cox")
-resolution = null
-max_steps = null
+max_steps = 300
 step_size = 1.999999999999994
 escape_radius = 112.8246799999998
 skybox_brightness = 0.752269999999998
-black_hole_position = null
-schwarzschild_radius = null
 black_hole_color = Color(0, 0, 0, 1)
-camera_fov = null
-use_scene_camera = null
-camera_position = null
-camera_target = null
-enable_disc = null
-disc_inner_radius = null
-disc_outer_radius = null
 disc_thickness = 11.999999999999964
 disc_emission_strength = 0.39999999999999913
-disc_inner_color = null
-disc_outer_color = null
 disc_noise_texture = SubResource("NoiseTexture2D_83yca")
-show_grid = null
 grid_spacing = 9.999999999999972
 grid_line_thickness = 0.49999999999999856
 grid_offset = -36.36364000000004
 grid_alpha = 0.698049999999998
 grid_range = 63.47402999999984
-grid_color = null
 skybox_texture = ExtResource("3_83yca")
-star_density = 0.007029999999999979
+star_density = 0.00702999999999997
 star_brightness = 4.999999999999985
-star_color = null
 
 [node name="Label" type="RichTextLabel" parent="ColorRect"]
 layout_mode = 0

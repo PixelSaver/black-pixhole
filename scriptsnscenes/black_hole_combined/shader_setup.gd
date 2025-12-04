@@ -2,7 +2,7 @@ extends Node
 class_name ShaderSetup
 
 # --- Core RIDs ---
-signal shader_process_frame(delta:float)
+signal shader_process_frame(delta:float, frame_time:float)
 var is_dispatching := false
 
 var rd: RenderingDevice
@@ -19,10 +19,10 @@ var skybox_rd_tex: RID # Permanent Skybox Texture RID
 # Rendering
 @export_group("Rendering")
 @export var resolution := Vector2i(1280, 720)
-@export_range(10, 2000) var max_steps := 500
-@export_range(0.01, 10.0) var step_size := 0.1
-@export_range(50.0, 500.0) var escape_radius := 100.0
-@export_range(0.1, 5.0) var skybox_brightness := 1.5
+@export_range(10, 10000) var max_steps := 500
+@export_range(0.0001, 10.0) var step_size := 0.1
+@export_range(50.0, 50000.0) var escape_radius := 100.0
+@export_range(0.01, 5.0) var skybox_brightness := 1.5
 
 # Black Hole
 @export_group("Black Hole")
@@ -66,6 +66,7 @@ var skybox_rd_tex: RID # Permanent Skybox Texture RID
 @export var star_color := Color(1.0, 1.0, 1.0, 1.0)
 
 var last_time = 0.
+var frame_start_time = 0.
 var update_noise_texture := false
 
 # ----------------------------------------------------
@@ -302,6 +303,7 @@ func _update_shader():
 		return
 	if is_dispatching: return
 	is_dispatching = true
+	frame_start_time = Time.get_unix_time_from_system()
 	
 	# 1. UPDATE UNIFORM BUFFER DATA (O(1) buffer write)
 	var new_params_data: PackedByteArray = _get_params_data()
@@ -336,13 +338,14 @@ func _update_shader():
 	
 	var curr = Time.get_unix_time_from_system()
 	var delta = curr-last_time
+	var frame_time = curr-frame_start_time
 	last_time = curr
 	
 	_display_result()
-	call_deferred("_emit_signal", delta)
+	call_deferred("_emit_signal", delta, frame_time)
 
-func _emit_signal(delta: float):
-	shader_process_frame.emit(delta)
+func _emit_signal(delta: float, frame_time):
+	shader_process_frame.emit(delta, frame_time)
 
 # ----------------------------------------------------
 # --- DISPLAY / CLEANUP ---

@@ -8,14 +8,22 @@ var camera_pos : Vector3 = Vector3(0,8,10)
 var target := Vector3.ZERO
 var distance := 60
 var target_distance := 60
-var yaw := 0.0
+var yaw := PI/2
 var pitch := 0.0
 var rotation_speed := 0.01
 var fov := 60.0
 var needs_update := false
+var frames_to_wait : int = 0
 
 func _ready() -> void:
-	return
+	shader_setup.shader_process_frame.connect(_on_shader_process)
+
+func _on_shader_process(_delta:float, frame_time:float):
+	var fps = Engine.get_frames_per_second()
+	var shader_fps = 1/frame_time
+	print("Shader fps: %s\nEngine fps: %s", [shader_fps, fps])
+	if shader_fps > fps:
+		frames_to_wait += int(shader_fps/fps) 
 
 # Called when the user provides input (e.g., mouse move/scroll)
 func _gui_input(event: InputEvent) -> void:
@@ -34,11 +42,14 @@ func _gui_input(event: InputEvent) -> void:
 			needs_update = true
 			
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			target_distance = clamp(target_distance * 1.05, min_distance, max_distance)
+			target_distance = clamp(target_distance * 1.1, min_distance, max_distance)
 			needs_update = true
 	_update_camera_state()
 
 func _process(_delta: float) -> void:
+	if frames_to_wait > 0:
+		frames_to_wait -= 1
+		return
 	shader_setup._update_shader()
 
 # Calculates the spherical coordinates into a cartesian position
