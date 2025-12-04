@@ -15,13 +15,17 @@ var params_buffer: RID # Permanent Uniform Buffer RID
 var noise_tex: RID # Permanent Noise Texture RID
 var skybox_rd_tex: RID # Permanent Skybox Texture RID
 
-# --- Export Variables (Same as before) ---
+# --- New: 3D Noise Texture RID ---
+var noise3d_tex: RID
+
+# --- Export Variables (Updated) ---
 # Rendering
 @export_group("Rendering")
 @export var resolution := Vector2i(1280, 720)
 @export_range(10, 10000) var max_steps := 500
 @export_range(0.0001, 10.0) var step_size := 0.1
 @export_range(50.0, 50000.0) var escape_radius := 100.0
+@export var skybox_texture: Texture2D = preload("res://scriptsnscenes/black_hole_combined/skybox_75.png")
 @export_range(0.01, 5.0) var skybox_brightness := 1.5
 
 # Black Hole
@@ -58,12 +62,13 @@ var skybox_rd_tex: RID # Permanent Skybox Texture RID
 @export_range(10.0, 100.0) var grid_range := 30.0
 @export var grid_color := Color(0.3, 0.8, 1.0, 1.0)
 
-# Stars
-@export_group("Stars")
-@export var skybox_texture: Texture2D = preload("res://scriptsnscenes/black_hole_combined/skybox_75.png")
-@export_range(0.0, 0.01) var star_density := 0.002
-@export_range(0.0, 5.0) var star_brightness := 2.0
-@export var star_color := Color(1.0, 1.0, 1.0, 1.0)
+# 🌌 Galaxy/Nebula (REPLACING Stars)
+@export_group("Volumetric Galaxy")
+@export var galaxy_noise_texture_3d: NoiseTexture3D # New texture for 3D noise
+@export_range(1.0, 50.0) var galaxy_radius := 300.0
+@export_range(1.0, 10.0) var galaxy_height := 100.0
+@export_range(0.00001, 10.0) var galaxy_intensity_scale := 1.0
+@export var galaxy_pos := Vector3(10, 0, 0)
 
 var last_time = 0.
 var frame_start_time = 0.
@@ -78,7 +83,7 @@ func _ready():
 	if not rd:
 		push_error("Failed to create RenderingDevice")
 		return
-	
+
 	_setup_shader()
 	_setup_textures()
 	sampler = _create_sampler() # Create permanent Sampler RID
@@ -123,14 +128,14 @@ func _create_sampler() -> RID:
 func _setup_uniforms():
 	var uniforms := []
 
-	# Binding 0: Output image (Permanent RID)
+	# Binding 0: Output image
 	var u_output := RDUniform.new()
 	u_output.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE
 	u_output.binding = 0
 	u_output.add_id(output_tex)
 	uniforms.append(u_output)
 
-	# Binding 1: Skybox Texture (Create texture RID once)
+	# Binding 1: Skybox Texture
 	skybox_rd_tex = _create_skybox_texture_rid()
 	var u_skybox := RDUniform.new()
 	u_skybox.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
@@ -139,7 +144,7 @@ func _setup_uniforms():
 	u_skybox.add_id(skybox_rd_tex)
 	uniforms.push_back(u_skybox)
 
-	# Binding 2: Disc noise texture (Create texture RID once)
+	# Binding 2: Disc noise texture (2D)
 	noise_tex = _create_noise_texture_rid()
 	var u_noise := RDUniform.new()
 	u_noise.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
@@ -148,13 +153,14 @@ func _setup_uniforms():
 	u_noise.add_id(noise_tex)
 	uniforms.append(u_noise)
 
-	# Binding 3: Uniform buffer (Create buffer RID once)
+	# Binding 3: Uniform buffer
 	params_buffer = _create_params_buffer_rid()
 	var u_params := RDUniform.new()
 	u_params.uniform_type = RenderingDevice.UNIFORM_TYPE_UNIFORM_BUFFER
 	u_params.binding = 3
 	u_params.add_id(params_buffer)
 	uniforms.append(u_params)
+
 
 	# Create the uniform set once
 	uniform_set = rd.uniform_set_create(uniforms, shader, 0)
@@ -186,9 +192,69 @@ func _create_noise_texture_rid() -> RID:
 	fmt.format = RenderingDevice.DATA_FORMAT_R8_UNORM
 	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | \
 					 RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT
-	
+
 	var data := img.get_data()
 	return rd.texture_create(fmt, RDTextureView.new(), [data])
+
+func _create_3d_noise_texture_rid() -> RID:
+	var noise3d_data: PackedByteArray
+	var size_x := 32  # Safe Default
+	var size_y := 32  # Safe Default
+	var size_z := 32  # Safe Default
+	var texture_format = RenderingDevice.DATA_FORMAT_R8_UNORM
+
+	# Assume 1 byte per voxel for R8_UNORM
+	var bytes_per_voxel := 1
+
+	if galaxy_noise_texture_3d:
+		# 1. Calculate the dimensions as advertised by the resource
+		var tx = galaxy_noise_texture_3d.width
+		var ty = galaxy_noise_texture_3d.height
+		var tz = galaxy_noise_texture_3d.depth
+
+		# 2. Calculate the expected size for the full volume
+		var expected_size = tx * ty * tz * bytes_per_voxel
+
+		# 3. Retrieve the data (which may be the placeholder 64 bytes)
+		# Note: We rely on the await in _ready() to make this the final data
+		noise3d_data = galaxy_noise_texture_3d.get_data()
+
+		# 4. CRITICAL SIZE CHECK: Only use the large dimensions if the data size matches
+		if noise3d_data.size() == expected_size:
+			# Success: The data is ready and full size. Use advertised dimensions.
+			size_x = tx
+			size_y = ty
+			size_z = tz
+			print("NoiseTexture3D READY. Size: " + str(size_x) + "x" + str(size_y) + "x" + str(size_z))
+		else:
+			# Failure: Data is incorrect size (e.g., 64 bytes). Fall back to default.
+			# The default size_x/y/z (32) is kept from the initial declaration.
+			push_warning("NoiseTexture3D data size mismatch (Supplied: " + str(noise3d_data.size()) + " vs. Expected: " + str(expected_size) + "). Using fallback (32x32x32).")
+
+	# 5. Fallback Data Generation (Guarantees data size matches fallback dimensions)
+	if noise3d_data.is_empty() or noise3d_data.size() != (size_x * size_y * size_z * bytes_per_voxel):
+
+		# Calculate and create the correct size byte array for the fallback
+		var fallback_size = size_x * size_y * size_z * bytes_per_voxel
+		noise3d_data = PackedByteArray()
+		noise3d_data.resize(fallback_size)
+		noise3d_data.fill(127) # Fill with neutral gray (127/255)
+
+	# 6. Create RDTextureFormat using the validated dimensions
+	var fmt := RDTextureFormat.new()
+	fmt.width = size_x
+	fmt.height = size_y
+	fmt.depth = size_z
+
+	fmt.format = texture_format
+	fmt.texture_type = RenderingDevice.TEXTURE_TYPE_3D
+	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | \
+					 RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT
+
+	var view = RDTextureView.new()
+	# The data size (noise3d_data.size()) is now GUARANTEED to match
+	# fmt.width * fmt.height * fmt.depth, resolving the error.
+	return rd.texture_create(fmt, view, [noise3d_data])
 
 func _create_params_buffer_rid() -> RID:
 	var params_data: PackedByteArray = _get_params_data()
@@ -204,11 +270,11 @@ func _get_noise_image_data_full() -> Image:
 	var img: Image
 	if disc_noise_texture and disc_noise_texture.noise:
 		img = disc_noise_texture.get_image()
-	
+
 	if not img: # Fallback
 		img = Image.create(256, 256, false, Image.FORMAT_L8)
 		img.fill(Color(0.5, 0.5, 0.5))
-		
+
 	img.convert(Image.FORMAT_R8) # Convert to format matching R8_UNORM
 	return img
 
@@ -279,19 +345,27 @@ func _get_params_data() -> PackedByteArray:
 
 	# Block 13: Grid Color
 	params.append_array([grid_color.r, grid_color.g, grid_color.b, grid_color.a])
-
-	# Block 14: Stars (with padding)
-	params.append(star_density)
-	params.append(star_brightness)
-	params.append(0.0) # _pad4.x
-	params.append(0.0) # _pad4.y
-
-	# Block 15: Star Color
-	params.append_array([star_color.r, star_color.g, star_color.b, star_color.a])
-
-	# Block 16: FINAL PADDING
-	params.append_array([0.0, 0.0, 0.0, 0.0]) # vec4 _final_padding
 	
+	params.append_array([0.0, 0.0, 0.0, 0.0]) # Dummy vec4 to keep Block 15 (Star Color) size
+
+	# --- BLOCKS 14 & 15: REMOVED STARS, ADDED GALAXY ---
+
+	# Block 14: Galaxy (Replaces Star Density/Brightness)
+	# The Galaxy effect uses three float values: Radius, Height, and Intensity Scale.
+	params.append(galaxy_radius)
+	params.append(galaxy_height)
+	params.append(galaxy_intensity_scale)
+	params.append(.05) # _nebula_step_size_start (Padding to fill the vec4/Block 14)
+	
+	# Block 15 
+	params.append_array([
+		galaxy_pos.x,
+		galaxy_pos.y,
+		galaxy_pos.z,
+	])
+	params.append(0.0) # pad 4
+
+
 	return params.to_byte_array()
 
 # ----------------------------------------------------
@@ -304,7 +378,7 @@ func _update_shader():
 	if is_dispatching: return
 	is_dispatching = true
 	frame_start_time = Time.get_unix_time_from_system()
-	
+
 	# 1. UPDATE UNIFORM BUFFER DATA (O(1) buffer write)
 	var new_params_data: PackedByteArray = _get_params_data()
 	if params_buffer.is_valid():
@@ -325,7 +399,7 @@ func _update_shader():
 	rd.compute_list_bind_compute_pipeline(compute_list, pipeline)
 	# Uniform Set is PERMANENT and does not need to be recreated!
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
-	
+
 	# Calculate group count
 	var group_x = ceili(resolution.x / 8.0)
 	var group_y = ceili(resolution.y / 8.0)
@@ -335,12 +409,12 @@ func _update_shader():
 	rd.submit()
 	rd.sync()
 	is_dispatching = false
-	
+
 	var curr = Time.get_unix_time_from_system()
 	var delta = curr-last_time
 	var frame_time = curr-frame_start_time
 	last_time = curr
-	
+
 	_display_result()
 	call_deferred("_emit_signal", delta, frame_time)
 
@@ -375,6 +449,9 @@ func _exit_tree():
 		rd.free_rid(params_buffer)
 		rd.free_rid(noise_tex)
 		rd.free_rid(skybox_rd_tex)
+		# 🌟 NEW: Free 3D noise texture
+		if noise3d_tex.is_valid():
+			rd.free_rid(noise3d_tex)
 		if uniform_set.is_valid():
 			rd.free_rid(uniform_set)
 		# Free the local rendering device itself last

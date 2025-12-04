@@ -21,9 +21,12 @@ func _ready() -> void:
 func _on_shader_process(_delta:float, frame_time:float):
 	var fps = Engine.get_frames_per_second()
 	var shader_fps = 1/frame_time
-	print("Shader fps: %s\nEngine fps: %s", [shader_fps, fps])
-	if shader_fps > fps:
-		frames_to_wait += int(shader_fps/fps) 
+	
+	if shader_fps < 10:
+		print("Shader fps: %s\nEngine fps: %s", [shader_fps, fps])
+	if shader_fps > fps*.9:
+		frames_to_wait += int(shader_fps/fps) + 1
+
 
 # Called when the user provides input (e.g., mouse move/scroll)
 func _gui_input(event: InputEvent) -> void:
