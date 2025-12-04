@@ -71,6 +71,12 @@ layout(set = 0, binding = 3, std140) uniform Params {
     // Block 15 (Offset 224)
     vec3 nebula_pos;
     float _pad4;
+
+    // Block 16 (Offset 240 - New Block)
+    float nebula_scale;
+    float nebula_rotation_x; // Pitch/Elevation (Rotation around X axis)
+    float nebula_rotation_y; // Yaw/Azimuth (Rotation around Y axis)
+    float nebula_rotation_z; // Roll (Rotation around Z axis)
 } params;
 
 const float EPS = 1e-6;
@@ -437,7 +443,56 @@ float snoise(vec3 v) {
     float noise = 0.5 + 0.5 * dot(m * m, vec4(dot(n0, x0), dot(n1, x1), dot(n2, x2), dot(n3, x3)));
     return 0.5;
 }
-// New function to calculate emission and transmittance for a single geodesic step
+
+// --- Rotation helpers ---
+
+mat4 rotationMatrix(vec3 axis, float angle) {
+    axis = normalize(axis);
+    float s = sin(angle);
+    float c = cos(angle);
+    float oc = 1.0 - c;
+
+    return mat4(
+        oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0,
+        oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0,
+        oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0,
+        0.0,                                0.0,                                0.0,                                1.0
+    );
+}
+
+mat4 rotationX(float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    return mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, c, -s, 0.0,
+        0.0, s, c, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+mat4 rotationY(float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    return mat4(
+        c, 0.0, s, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        -s, 0.0, c, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+mat4 rotationZ(float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    return mat4(
+        c, -s, 0.0, 0.0,
+        s, c, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
 // --- New Nebula Function ---
 // Calculates emission and updates ray transmittance for a single geodesic step.
 // 'lp' is the position relative to the nebula center.
@@ -446,56 +501,81 @@ vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, 
     float NEBULA_RADIUS = params.nebula_radius;
     float NEBULA_HEIGHT = params.nebula_height;
 
-    float l = length(lp.xz);
-    if (l > NEBULA_RADIUS || abs(lp.y) > NEBULA_HEIGHT * 0.5) {
+    // 1. Define Rotation Matrices (Same as before)
+    mat4 R_x = rotationX(params.nebula_rotation_x);
+    mat4 R_y = rotationY(params.nebula_rotation_y);
+    mat4 R_z = rotationZ(params.nebula_rotation_z);
+    
+    // Combined rotation matrix
+    mat4 R_combined = R_y * R_x * R_z; 
+    mat4 R_combined_inv = transpose(R_combined);
+    
+    // --- 2. Calculate coordinates for Bounds Check (Inverse Rotation AND Inverse Scale) ---
+    
+    // First, apply the inverse scale to the local position (lp).
+    // If params.nebula_scale is S, we divide lp by S.
+    vec3 lp_scaled_inv = lp / max(params.nebula_scale, EPS); 
+
+    // Then, apply the inverse rotation (R_combined_inv) to the inversely scaled position.
+    // lp_for_bounds is the ray's position transformed back into the nebula's *original, unit-scale* frame.
+    vec3 lp_for_bounds = (R_combined_inv * vec4(lp_scaled_inv, 1.0)).xyz;
+
+    // Use the bounds check against the *inverse* transformed position.
+    float l_for_bounds = length(lp_for_bounds.xz);
+    if (l_for_bounds > NEBULA_RADIUS || abs(lp_for_bounds.y) > NEBULA_HEIGHT * 0.5) {
         return vec3(0.0);
     }
+    
+    // --- 3. Calculate Transformed Coordinates for Structure (Forward Rotation and Scale) ---
+    // (This part is identical to the previous version and is used for the density/noise calculations)
+    
+    vec3 lp_rotated = (R_combined * vec4(lp, 1.0)).xyz;
+    vec3 lp_transformed = lp_rotated / params.nebula_scale;
+    
+    // Now use lp_transformed for all subsequent noise and density calculations:
 
-    // --- 1. COORDINATE PORTING (Exact Match to Spatial Shader) ---
-    float ang = atan(lp.z, lp.x);
-
-    // 2D polar noise texture sample
+    float l = length(lp_transformed.xz);
+    
+    // ... (rest of the function remains unchanged, using lp_transformed and l) ...
+    // --- 1. COORDINATE PORTING ---
+    float ang = atan(lp_transformed.z, lp_transformed.x); 
+    
     float n = clamp(-max(0.0, 0.8 - l) + texture(noise_sampler, vec2(ang / (2.0 * PI) + et * 0.5, l * 0.35)).r, 0.0, 1.0);
-
-    // 3D polar noise texture sample (using snoise as texture3D placeholder)
-    vec3 n3_coord_polar = vec3(1.5 * ang / PI + et, lp.y, log(max(l * 5.0, 0.01)));
+    
+    vec3 n3_coord_polar = vec3(1.5 * ang / PI + et, lp_transformed.y, log(max(l * 5.0, 0.01))); 
     float n3 = snoise(n3_coord_polar);
-
-    // 3D cartesian noise texture sample (using snoise as texture3D placeholder)
+    
     float ct = cos(et * 1.5), st = sin(et * 1.5);
-    vec3 n3o_coord_cart = vec3(lp.x * ct - lp.z * st, lp.y, lp.x * st + lp.z * ct) * 0.5;
+    vec3 n3o_coord_cart = vec3(lp_transformed.x * ct - lp_transformed.z * st, lp_transformed.y, lp_transformed.x * st + lp_transformed.z * ct) * 0.5;
     float n3o = snoise(n3o_coord_cart);
-
-    // --- 2. DENSITY & COLOR CALCULATION (Exact Match) ---
-    vec3 nlp = lp + 0.12 * (l + 1.0) * (n - 0.5) * 0.5;
+    
+    // --- 2. DENSITY & COLOR CALCULATION ---
+    vec3 nlp = lp_transformed + 0.12 * (l + 1.0) * (n - 0.5) * 0.5;
     float nl = length(nlp.xz);
     float r_density = nl * 1.85 - 1.2;
     float t = mod(atan(nlp.z, nlp.x), PI);
     float diff = abs(mod((r_density - t + 0.5 * PI), (PI)) - 0.5 * PI);
-
+    
     float l2 = l * l;
-    float lpy2 = lp.y * lp.y;
+    float lpy2 = lp_transformed.y * lp_transformed.y; 
     float factor = (1.0 + tanh(3.0 * r_density)) * 0.6 * max(0.0, 0.42 - pow(diff, 2.0));
-
+    
     float spiral_density = (0.5 * max(0.0, 1.15 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - sqrt(0.045 * l2 + 24.0 * lpy2)) * (1.5 * n + 0.55) * 0.4;
-    float core_density = 40.0 * pow(max(0.0, 0.45 - sqrt(0.3 * lp.x * lp.x + lp.z * lp.z + 3.0 * lp.y * lp.y)), 2.0) + 5.0 * pow(max(0.0, 0.65 - sqrt(0.45 * lp.x * lp.x + lp.z * lp.z + 4.0 * lpy2)), 1.5) * (n + 0.5);
-    float particle_density = (0.3 * max(0.0, 1.25 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - pow(0.045 * l2 + 16.0 * lpy2, 4.0)) * (1.0 - abs(4.0 * lp.y)) * 400.0;
+    float core_density = 40.0 * pow(max(0.0, 0.45 - sqrt(0.3 * lp_transformed.x * lp_transformed.x + lp_transformed.z * lp_transformed.z + 3.0 * lpy2)), 2.0) + 5.0 * pow(max(0.0, 0.65 - sqrt(0.45 * lp_transformed.x * lp_transformed.x + lp_transformed.z * lp_transformed.z + 4.0 * lpy2)), 1.5) * (n + 0.5);
+    float particle_density = (0.3 * max(0.0, 1.25 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - pow(0.045 * l2 + 16.0 * lpy2, 4.0)) * (1.0 - abs(4.0 * lp_transformed.y)) * 400.0;
     float dust_density = pow(max(0.0, n3 - 0.2), 1.5) * particle_density;
-    float gas_density = pow(max(0.0, abs(n3o - 0.55) - 0.12), 2.0) * particle_density * 1.2 * max(0.0, 1.0 - 0.35 * diff - pow(0.2 * l, 0.4)) * (0.5 - abs(2.5 * lp.y));
-
+    float gas_density = pow(max(0.0, abs(n3o - 0.55) - 0.12), 2.0) * particle_density * 1.2 * max(0.0, 1.0 - 0.35 * diff - pow(0.2 * l, 0.4)) * (0.5 - abs(2.5 * lp_transformed.y));
+    
     vec3 star_col = mix(vec3(0.45, 0.6, 1.0), vec3(1.0, 0.5, 0.2), pow(max(0.0, 1.0 - 0.2 * l), 1.8));
     float total_density = spiral_density + core_density + dust_density + gas_density;
     float prox = tanh(distance(camera_pos, lp + params.black_hole_position + params.nebula_pos) * 0.4);
-
-    // --- 3. ACCUMULATION (Backwards Raytracing / Forward Volume Integration) ---
-    // Luminosity (L) from this step, attenuated by the volume behind it (ray_transmittance)
+    
+    // --- 3. ACCUMULATION ---
     vec3 emission = prox * ray_transmittance * (star_col * vec3(spiral_density * 12.0 + core_density * 6.0 + vec3(0.7, 0.4, 0.3) * dust_density * 0.02) +
-                vec3(1.0, 0.3, 0.3) * gas_density * 8.0) * step_val * 2.0;
-
-    // Transmittance (T) is attenuated by the current volume segment
+        vec3(1.0, 0.3, 0.3) * gas_density * 8.0) * step_val * 2.0;
+    
     ray_transmittance *= exp(-(total_density) * prox * step_val * 0.2);
-
-    // Apply the user-controlled intensity scale
+    
     return emission * params.nebula_intensity_scale;
 }
 // --- MAIN ---

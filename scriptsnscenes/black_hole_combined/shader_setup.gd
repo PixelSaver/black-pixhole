@@ -64,9 +64,10 @@ var noise3d_tex: RID
 
 # 🌌 Galaxy/Nebula (REPLACING Stars)
 @export_group("Volumetric Galaxy")
-@export var galaxy_noise_texture_3d: NoiseTexture3D # New texture for 3D noise
-@export_range(1.0, 50.0) var galaxy_radius := 300.0
-@export_range(1.0, 10.0) var galaxy_height := 100.0
+@export_range(0.1, 100.) var galaxy_scale := 1.
+@export var galaxy_rotation := Vector3.ZERO
+@export_range(1.0, 500.0) var galaxy_radius := 300.0
+@export_range(1.0, 100.0) var galaxy_height := 100.0
 @export_range(0.00001, 10.0) var galaxy_intensity_scale := 1.0
 @export var galaxy_pos := Vector3(10, 0, 0)
 
@@ -196,66 +197,6 @@ func _create_noise_texture_rid() -> RID:
 	var data := img.get_data()
 	return rd.texture_create(fmt, RDTextureView.new(), [data])
 
-func _create_3d_noise_texture_rid() -> RID:
-	var noise3d_data: PackedByteArray
-	var size_x := 32  # Safe Default
-	var size_y := 32  # Safe Default
-	var size_z := 32  # Safe Default
-	var texture_format = RenderingDevice.DATA_FORMAT_R8_UNORM
-
-	# Assume 1 byte per voxel for R8_UNORM
-	var bytes_per_voxel := 1
-
-	if galaxy_noise_texture_3d:
-		# 1. Calculate the dimensions as advertised by the resource
-		var tx = galaxy_noise_texture_3d.width
-		var ty = galaxy_noise_texture_3d.height
-		var tz = galaxy_noise_texture_3d.depth
-
-		# 2. Calculate the expected size for the full volume
-		var expected_size = tx * ty * tz * bytes_per_voxel
-
-		# 3. Retrieve the data (which may be the placeholder 64 bytes)
-		# Note: We rely on the await in _ready() to make this the final data
-		noise3d_data = galaxy_noise_texture_3d.get_data()
-
-		# 4. CRITICAL SIZE CHECK: Only use the large dimensions if the data size matches
-		if noise3d_data.size() == expected_size:
-			# Success: The data is ready and full size. Use advertised dimensions.
-			size_x = tx
-			size_y = ty
-			size_z = tz
-			print("NoiseTexture3D READY. Size: " + str(size_x) + "x" + str(size_y) + "x" + str(size_z))
-		else:
-			# Failure: Data is incorrect size (e.g., 64 bytes). Fall back to default.
-			# The default size_x/y/z (32) is kept from the initial declaration.
-			push_warning("NoiseTexture3D data size mismatch (Supplied: " + str(noise3d_data.size()) + " vs. Expected: " + str(expected_size) + "). Using fallback (32x32x32).")
-
-	# 5. Fallback Data Generation (Guarantees data size matches fallback dimensions)
-	if noise3d_data.is_empty() or noise3d_data.size() != (size_x * size_y * size_z * bytes_per_voxel):
-
-		# Calculate and create the correct size byte array for the fallback
-		var fallback_size = size_x * size_y * size_z * bytes_per_voxel
-		noise3d_data = PackedByteArray()
-		noise3d_data.resize(fallback_size)
-		noise3d_data.fill(127) # Fill with neutral gray (127/255)
-
-	# 6. Create RDTextureFormat using the validated dimensions
-	var fmt := RDTextureFormat.new()
-	fmt.width = size_x
-	fmt.height = size_y
-	fmt.depth = size_z
-
-	fmt.format = texture_format
-	fmt.texture_type = RenderingDevice.TEXTURE_TYPE_3D
-	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | \
-					 RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT
-
-	var view = RDTextureView.new()
-	# The data size (noise3d_data.size()) is now GUARANTEED to match
-	# fmt.width * fmt.height * fmt.depth, resolving the error.
-	return rd.texture_create(fmt, view, [noise3d_data])
-
 func _create_params_buffer_rid() -> RID:
 	var params_data: PackedByteArray = _get_params_data()
 	# Create the buffer once and return its RID
@@ -364,6 +305,14 @@ func _get_params_data() -> PackedByteArray:
 		galaxy_pos.z,
 	])
 	params.append(0.0) # pad 4
+	
+	# Block 16
+	params.append(galaxy_scale)
+	params.append_array([
+		galaxy_rotation.x,
+		galaxy_rotation.y,
+		galaxy_rotation.z,
+	])
 
 
 	return params.to_byte_array()
