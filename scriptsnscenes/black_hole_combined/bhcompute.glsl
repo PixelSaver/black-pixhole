@@ -46,7 +46,7 @@ layout(set = 0, binding = 3, std140) uniform Params {
 
     // Block 10 (Offset 144)
     float show_disc;
-    vec3 _pad2;
+    vec2 _pad2;
 
     // Block 11 (Offset 160)
     float show_grid;
@@ -246,8 +246,12 @@ void rk2Step(inout Ray ray, float dL) {
 
     // Midpoint: Estimate state at t + dL/2 using K1
     r_temp = ray;
-    r_temp.r += 0.5 * dL * k1a.x; r_temp.theta += 0.5 * dL * k1a.y; r_temp.phi += 0.5 * dL * k1a.z;
-    r_temp.dr += 0.5 * dL * k1b.x; r_temp.dtheta += 0.5 * dL * k1b.y; r_temp.dphi += 0.5 * dL * k1b.z;
+    r_temp.r += 0.5 * dL * k1a.x;
+    r_temp.theta += 0.5 * dL * k1a.y;
+    r_temp.phi += 0.5 * dL * k1a.z;
+    r_temp.dr += 0.5 * dL * k1b.x;
+    r_temp.dtheta += 0.5 * dL * k1b.y;
+    r_temp.dphi += 0.5 * dL * k1b.z;
 
     // K2: Evaluate RHS at the midpoint (r_temp)
     geodesicRHS(r_temp, k2a, k2b);
@@ -264,8 +268,10 @@ void rk2Step(inout Ray ray, float dL) {
     ray.theta = clamp(ray.theta, 0.0, PI);
     ray.r = max(ray.r, EPS);
 
-    float st = sin(ray.theta); float ct = cos(ray.theta);
-    float sp = sin(ray.phi); float cp = cos(ray.phi);
+    float st = sin(ray.theta);
+    float ct = cos(ray.theta);
+    float sp = sin(ray.phi);
+    float cp = cos(ray.phi);
 
     ray.x = ray.r * st * cp;
     ray.y = ray.r * st * sp;
@@ -355,51 +361,74 @@ float calculateWarpedGridY(float x, float z) {
 }
 
 bool isOnGridLine(vec2 xz, out float strength) {
-    float xMod = mod(xz.x + params.grid_range, params.grid_spacing);
-    float yMod = mod(xz.y + params.grid_range, params.grid_spacing);
-    float distX = min(xMod, params.grid_spacing - xMod);
-    float distY = min(yMod, params.grid_spacing - yMod);
-    float minDist = min(distX, distY);
+    float spacing = params.grid_spacing;
+    float thickness = params.grid_line_thickness;
 
-    if (minDist < params.grid_line_thickness) {
-        strength = step(minDist, params.grid_line_thickness * 0.99);
+    // Use mod to get the coordinate within one grid cell [0, spacing]
+    float xWrapped = mod(xz.x, spacing);
+    float zWrapped = mod(xz.y, spacing);
+
+    // Calculate the distance to the nearest line center (0 or spacing)
+    // This maps the distance into the range [0, spacing / 2]
+    float distX = min(xWrapped, spacing - xWrapped);
+    float distZ = min(zWrapped, spacing - zWrapped);
+
+    float minDist = min(distX, distZ);
+
+    if (minDist < thickness) {
+        // Use smoothstep for anti-aliased strength
+        // strength is 1.0 at minDist=0 and fades to 0.0 at minDist=thickness
+        strength = 1.0 - smoothstep(0.0, thickness, minDist);
         return true;
     }
+    strength = 0.0;
     return false;
 }
 
 bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStrength) {
     if (params.show_grid < 0.5) return false;
 
-    float tNear = 0.0;
+    float t = 0.0;
+    const int MAX_STEPS = 100; // Limit iterations to prevent freezing
+    const float HIT_EPSILON = 0.001; // The desired accuracy for the hit point
+
+    // tFar is the max distance the ray will travel (your previous range)
     float tFar = length(origin) + params.grid_range;
-    const int samples = 128;
 
-    float prevY = origin.y - calculateWarpedGridY(origin.x, origin.z);
-
-    for (int i = 1; i <= samples; ++i) {
-        float tf = float(i) / float(samples);
-        float t = mix(tNear, tFar, tf);
+    for (int i = 0; i < MAX_STEPS; ++i) {
         vec3 p = origin + dir * t;
 
+        // --- Boundary/Exit Checks ---
+        if (t > tFar) return false;
+        // Check XZ bounds (optional, but good for performance)
         float distXZ = length(p.xz);
-        if (distXZ > params.grid_range || distXZ < params.schwarzschild_radius * 1.01) continue;
+        if (distXZ > params.grid_range || distXZ < params.schwarzschild_radius) break;
 
-        float yNow = p.y - calculateWarpedGridY(p.x, p.z);
+        // --- Core Sphere Tracing Logic ---
 
-        if (prevY * yNow <= 0.0) {
-            float frac = abs(prevY) / (abs(prevY) + abs(yNow) + 1e-6);
-            vec3 hit = mix(p, origin + dir * (t - (tFar - tNear) / float(samples)), frac);
+        // 1. Calculate the signed vertical distance (f(t))
+        float warpedY = calculateWarpedGridY(p.x, p.z);
+        float dist = p.y - warpedY; // Positive = above the surface; Negative = below
+
+        // 2. Check for Intersection
+        if (abs(dist) < HIT_EPSILON) {
+            // Found a hit point 'p' within epsilon of the surface.
 
             float lineStr;
-            if (isOnGridLine(hit.xz, lineStr)) {
-                float fade = 1.0 - smoothstep(params.grid_range * 0.9, params.grid_range, length(hit.xz));
+            if (isOnGridLine(p.xz, lineStr)) {
+                // Apply fading based on distance from the black hole (optional)
+                float fade = 1.0 - smoothstep(params.grid_range * 0.9, params.grid_range, distXZ);
                 gridStrength = params.grid_alpha * lineStr * fade;
                 return true;
             }
         }
-        prevY = yNow;
+
+        // 3. Adaptive Stepping
+        // We advance the ray by the absolute vertical distance 'dist'.
+        // This is a lower bound on the true distance, making it a safe step.
+        t += abs(dist);
     }
+
     return false;
 }
 // --- Procedural Simplex Noise (snoise) for 3D Texture Replacement ---
@@ -488,10 +517,10 @@ mat4 rotationMatrix(vec3 axis, float angle) {
     float oc = 1.0 - c;
 
     return mat4(
-        oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0,
-        oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0,
-        oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0,
-        0.0,                                0.0,                                0.0,                                1.0
+        oc * axis.x * axis.x + c, oc * axis.x * axis.y - axis.z * s, oc * axis.z * axis.x + axis.y * s, 0.0,
+        oc * axis.x * axis.y + axis.z * s, oc * axis.y * axis.y + c, oc * axis.y * axis.z - axis.x * s, 0.0,
+        oc * axis.z * axis.x - axis.y * s, oc * axis.y * axis.z + axis.x * s, oc * axis.z * axis.z + c, 0.0,
+        0.0, 0.0, 0.0, 1.0
     );
 }
 
@@ -541,16 +570,16 @@ vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, 
     mat4 R_x = rotationX(params.nebula_rotation_x);
     mat4 R_y = rotationY(params.nebula_rotation_y);
     mat4 R_z = rotationZ(params.nebula_rotation_z);
-    
+
     // Combined rotation matrix
-    mat4 R_combined = R_y * R_x * R_z; 
+    mat4 R_combined = R_y * R_x * R_z;
     mat4 R_combined_inv = transpose(R_combined);
-    
+
     // --- 2. Calculate coordinates for Bounds Check (Inverse Rotation AND Inverse Scale) ---
-    
+
     // First, apply the inverse scale to the local position (lp).
     // If params.nebula_scale is S, we divide lp by S.
-    vec3 lp_scaled_inv = lp / max(params.nebula_scale, EPS); 
+    vec3 lp_scaled_inv = lp / max(params.nebula_scale, EPS);
 
     // Then, apply the inverse rotation (R_combined_inv) to the inversely scaled position.
     // lp_for_bounds is the ray's position transformed back into the nebula's *original, unit-scale* frame.
@@ -561,61 +590,69 @@ vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, 
     if (l_for_bounds > NEBULA_RADIUS || abs(lp_for_bounds.y) > NEBULA_HEIGHT * 0.5) {
         return vec3(0.0);
     }
-    
+
     // --- 3. Calculate Transformed Coordinates for Structure (Forward Rotation and Scale) ---
     // (This part is identical to the previous version and is used for the density/noise calculations)
-    
+
     vec3 lp_rotated = (R_combined * vec4(lp, 1.0)).xyz;
     vec3 lp_transformed = lp_rotated / params.nebula_scale;
-    
+
     // Now use lp_transformed for all subsequent noise and density calculations:
 
     float l = length(lp_transformed.xz);
-    
+
     // ... (rest of the function remains unchanged, using lp_transformed and l) ...
     // --- 1. COORDINATE PORTING ---
-    float ang = atan(lp_transformed.z, lp_transformed.x); 
-    
+    float ang = atan(lp_transformed.z, lp_transformed.x);
+
     float n = clamp(-max(0.0, 0.8 - l) + texture(noise_sampler, vec2(ang / (2.0 * PI) + et * 0.5, l * 0.35)).r, 0.0, 1.0);
-    
-    vec3 n3_coord_polar = vec3(1.5 * ang / PI + et, lp_transformed.y, log(max(l * 5.0, 0.01))); 
+
+    vec3 n3_coord_polar = vec3(1.5 * ang / PI + et, lp_transformed.y, log(max(l * 5.0, 0.01)));
     float n3 = snoise(n3_coord_polar);
-    
+
     float ct = cos(et * 1.5), st = sin(et * 1.5);
     vec3 n3o_coord_cart = vec3(lp_transformed.x * ct - lp_transformed.z * st, lp_transformed.y, lp_transformed.x * st + lp_transformed.z * ct) * 0.5;
     float n3o = snoise(n3o_coord_cart);
-    
+
     // --- 2. DENSITY & COLOR CALCULATION ---
     vec3 nlp = lp_transformed + 0.12 * (l + 1.0) * (n - 0.5) * 0.5;
     float nl = length(nlp.xz);
     float r_density = nl * 1.85 - 1.2;
     float t = mod(atan(nlp.z, nlp.x), PI);
     float diff = abs(mod((r_density - t + 0.5 * PI), (PI)) - 0.5 * PI);
-    
+
     float l2 = l * l;
-    float lpy2 = lp_transformed.y * lp_transformed.y; 
+    float lpy2 = lp_transformed.y * lp_transformed.y;
     float factor = (1.0 + tanh(3.0 * r_density)) * 0.6 * max(0.0, 0.42 - pow(diff, 2.0));
-    
+
     float spiral_density = (0.5 * max(0.0, 1.15 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - sqrt(0.045 * l2 + 24.0 * lpy2)) * (1.5 * n + 0.55) * 0.4;
     float core_density = 40.0 * pow(max(0.0, 0.45 - sqrt(0.3 * lp_transformed.x * lp_transformed.x + lp_transformed.z * lp_transformed.z + 3.0 * lpy2)), 2.0) + 5.0 * pow(max(0.0, 0.65 - sqrt(0.45 * lp_transformed.x * lp_transformed.x + lp_transformed.z * lp_transformed.z + 4.0 * lpy2)), 1.5) * (n + 0.5);
     float particle_density = (0.3 * max(0.0, 1.25 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - pow(0.045 * l2 + 16.0 * lpy2, 4.0)) * (1.0 - abs(4.0 * lp_transformed.y)) * 400.0;
     float dust_density = pow(max(0.0, n3 - 0.2), 1.5) * particle_density;
     float gas_density = pow(max(0.0, abs(n3o - 0.55) - 0.12), 2.0) * particle_density * 1.2 * max(0.0, 1.0 - 0.35 * diff - pow(0.2 * l, 0.4)) * (0.5 - abs(2.5 * lp_transformed.y));
-    
+
     vec3 star_col = mix(vec3(0.45, 0.6, 1.0), vec3(1.0, 0.5, 0.2), pow(max(0.0, 1.0 - 0.2 * l), 1.8));
     float total_density = spiral_density + core_density + dust_density + gas_density;
     float prox = tanh(distance(camera_pos, lp + params.black_hole_position + params.nebula_pos) * 0.4);
-    
+
     // --- 3. ACCUMULATION ---
     vec3 emission = prox * ray_transmittance * (star_col * vec3(spiral_density * 12.0 + core_density * 6.0 + vec3(0.7, 0.4, 0.3) * dust_density * 0.02) +
-        vec3(1.0, 0.3, 0.3) * gas_density * 8.0) * step_val * 2.0;
-    
+                vec3(1.0, 0.3, 0.3) * gas_density * 8.0) * step_val * 2.0;
+
     ray_transmittance *= exp(-(total_density) * prox * step_val * 0.2);
-    
+
     return emission * params.nebula_intensity_scale;
 }
 // --- MAIN ---
 void main() {
+    // // DEBUG
+    // imageStore(output_image, ivec2(0), vec4(
+    //     params.show_grid,
+    //     params.grid_spacing/20.,
+    //     params.grid_line_thickness / 20.,
+    //     params.grid_alpha
+    // ));
+    // -------------------------------------
     ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
     ivec2 res = ivec2(params.resolution);
     if (pixel_coords.x >= res.x || pixel_coords.y >= res.y) return;
@@ -661,7 +698,7 @@ void main() {
 
         float step_val = getAdaptiveStepSize(ray.r);
         Ray prev_ray = ray;
-        if (ray.r / params.schwarzschild_radius > 0.5) {
+        if (ray.r > params.schwarzschild_radius * 2) {
             rk2Step(ray, step_val);
         } else {
             rk4Step(ray, step_val);
@@ -680,7 +717,7 @@ void main() {
             vec3 mid_pos = mix(prev_pos_cart, new_pos_cart, 0.5);
             vec3 pos_rel_bh = mid_pos - params.black_hole_position;
             vec3 lp = pos_rel_bh - params.nebula_pos; // Position relative to nebula center
-    
+
             vec3 nebula_step_color = renderNebulaVolume(lp, step_val, ray_transmittance, et, params.camera_position);
             total_nebula_color += nebula_step_color;
         }

@@ -56,7 +56,7 @@ var noise3d_tex: RID
 @export_group("Spacetime Grid")
 @export var show_grid := true
 @export_range(0.5, 10.0) var grid_spacing := 2.0
-@export_range(0.01, 0.5) var grid_line_thickness := 0.08
+@export_range(0.01, 10.) var grid_line_thickness := 0.08
 @export_range(-50, 50) var grid_offset : float = 0
 @export_range(0.0, 1.0) var grid_alpha := 0.5
 @export_range(10.0, 100.0) var grid_range := 30.0
@@ -279,14 +279,13 @@ func _get_params_data() -> PackedByteArray:
 
 	# Block 12: Grid Range/Offset (with padding)
 	params.append(grid_range)
-	params.append(grid_offset)
+	params.append(-grid_offset)
 	params.append(0.0) # _pad3.x
 	params.append(0.0) # _pad3.y
 
 	# Block 13: Grid Color
 	params.append_array([grid_color.r, grid_color.g, grid_color.b, grid_color.a])
-	
-	params.append_array([0.0, 0.0, 0.0, 0.0]) # Dummy vec4 to keep Block 15 (Star Color) size
+
 
 	# --- BLOCKS 14 & 15: REMOVED STARS, ADDED GALAXY ---
 
@@ -296,15 +295,15 @@ func _get_params_data() -> PackedByteArray:
 	params.append(0.0)
 	params.append(galaxy_intensity_scale)
 	params.append(.01) # _nebula_step_size_start (Padding to fill the vec4/Block 14)
-	
-	# Block 15 
+
+	# Block 15
 	params.append_array([
 		galaxy_pos.x,
 		galaxy_pos.y,
 		galaxy_pos.z,
 	])
 	params.append(0.0) # pad 4
-	
+
 	# Block 16
 	params.append(galaxy_scale)
 	params.append_array([
@@ -379,6 +378,10 @@ func _display_result():
 		return
 
 	var img := Image.create_from_data(resolution.x, resolution.y, false, Image.FORMAT_RGBAH, byte_data)
+	
+	var px = img.get_pixel(0, 0)
+	#print("First pixel RGBA: ", px)
+	
 	# Cast is necessary for safety when accessing parent
 	var parent_node = get_parent()
 	if parent_node is TextureRect:

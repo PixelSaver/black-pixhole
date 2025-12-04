@@ -54,6 +54,7 @@ func _process(_delta: float) -> void:
 		frames_to_wait -= 1
 		return
 	shader_setup._update_shader()
+	
 
 # Calculates the spherical coordinates into a cartesian position
 func _update_camera_state():
