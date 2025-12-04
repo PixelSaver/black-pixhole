@@ -33,8 +33,8 @@ zoom_speed = 1.0999999999999968
 [node name="ShaderSetup" type="Node" parent="ColorRect"]
 script = ExtResource("2_c2cox")
 resolution = Vector2i(320, 180)
-max_steps = 565
-step_size = 0.999999999999997
+max_steps = 3010
+step_size = 0.2727299999999992
 escape_radius = 999.9999999999972
 skybox_brightness = 3.587499999999989
 black_hole_color = Color(0, 0, 0, 1)
@@ -50,7 +50,7 @@ grid_range = 63.47402999999984
 galaxy_scale = 7.811349999999976
 galaxy_rotation = Vector3(0, 0.03355, 1.03145)
 galaxy_intensity_scale = 2.305199999999993
-galaxy_pos = Vector3(30, 0.0842, -0.03865)
+galaxy_pos = Vector3(50, 0.0842, -0.03865)
 
 [node name="Label" type="RichTextLabel" parent="ColorRect"]
 layout_mode = 0

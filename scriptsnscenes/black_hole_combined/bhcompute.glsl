@@ -236,6 +236,41 @@ void rk4Step(inout Ray ray, float dL) {
     ray.z = ray.r * ct;
 }
 
+// New RK2 (Midpoint Method) Step
+void rk2Step(inout Ray ray, float dL) {
+    Ray r_temp;
+    vec3 k1a, k1b, k2a, k2b;
+
+    // K1: Evaluate RHS at the current position (ray)
+    geodesicRHS(ray, k1a, k1b);
+
+    // Midpoint: Estimate state at t + dL/2 using K1
+    r_temp = ray;
+    r_temp.r += 0.5 * dL * k1a.x; r_temp.theta += 0.5 * dL * k1a.y; r_temp.phi += 0.5 * dL * k1a.z;
+    r_temp.dr += 0.5 * dL * k1b.x; r_temp.dtheta += 0.5 * dL * k1b.y; r_temp.dphi += 0.5 * dL * k1b.z;
+
+    // K2: Evaluate RHS at the midpoint (r_temp)
+    geodesicRHS(r_temp, k2a, k2b);
+
+    // Final Step: Use K2 to step from the original position
+    ray.r += dL * k2a.x;
+    ray.theta += dL * k2a.y;
+    ray.phi += dL * k2a.z;
+    ray.dr += dL * k2b.x;
+    ray.dtheta += dL * k2b.y;
+    ray.dphi += dL * k2b.z;
+
+    // Update Spherical <-> Cartesian
+    ray.theta = clamp(ray.theta, 0.0, PI);
+    ray.r = max(ray.r, EPS);
+
+    float st = sin(ray.theta); float ct = cos(ray.theta);
+    float sp = sin(ray.phi); float cp = cos(ray.phi);
+
+    ray.x = ray.r * st * cp;
+    ray.y = ray.r * st * sp;
+    ray.z = ray.r * ct;
+}
 // NOTE: All CARTESIAN RK logic and rk2Step are REMOVED here.
 
 float getAdaptiveStepSize(float r) {
@@ -626,7 +661,11 @@ void main() {
 
         float step_val = getAdaptiveStepSize(ray.r);
         Ray prev_ray = ray;
-        rk4Step(ray, step_val);
+        if (ray.r / params.schwarzschild_radius > 0.5) {
+            rk2Step(ray, step_val);
+        } else {
+            rk4Step(ray, step_val);
+        }
 
         vec3 new_pos_cart = vec3(ray.x, ray.y, ray.z);
 
