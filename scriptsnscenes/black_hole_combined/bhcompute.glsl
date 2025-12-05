@@ -352,12 +352,45 @@ vec3 renderDiscVolume(Ray r_start, Ray r_end, float ray_t) {
 float calculateWarpedGridY(float x, float z) {
     float dx = x - params.black_hole_position.x;
     float dz = z - params.black_hole_position.z;
-    float dist = sqrt(dx * dx + dz * dz);
+    float dist = sqrt(dx * dx + dz * dz); // r
+    float r_s = params.schwarzschild_radius;
 
-    if (dist > params.schwarzschild_radius) {
-        return 2.0 * sqrt(params.schwarzschild_radius * (dist - params.schwarzschild_radius)) - params.grid_warp_offset;
+    // Define the boundaries:
+    const float R_MIN_REJECT = r_s * 0.1; // Grid intersection is rejected below this radius (matches your sphere tracer)
+    const float R_FLAT = r_s * 1.5; // Grid starts flattening (no more warping) inside this radius
+
+    // --- 1. Warped Region: r > R_FLAT ---
+    if (dist >= R_FLAT) {
+        // Use the standard warp formula, but adjust the input distance for a smoother transition.
+        // We'll calculate the warp relative to R_FLAT instead of r_s.
+        float magnitude = 2.0 * sqrt(r_s * (dist - r_s));
+        return magnitude - params.grid_warp_offset;
     }
-    return 2.0 * params.schwarzschild_radius - params.grid_warp_offset;
+
+    // --- 2. Flat Region: R_MIN_REJECT < r < R_FLAT ---
+    if (dist > R_MIN_REJECT) {
+        // Find the Y value at the transition point R_FLAT to ensure continuity.
+        // You'll need to define this as a constant or calculate it once.
+        // For simplicity, let's just make the surface level with the horizon y-value.
+
+        // At r=r_s, magnitude = 0. We'll flatten the Y at this level, and drop the grid line below it.
+        float flat_y = 0.0 - params.grid_warp_offset;
+
+        // To make the transition smoother and hide the remaining warp,
+        // we can blend the warped Y with the flat Y based on distance from R_FLAT to R_MIN_REJECT.
+        float blend_factor = smoothstep(R_MIN_REJECT, R_FLAT, dist); // 0 at R_MIN, 1 at R_FLAT
+
+        float warpedY_at_RFLAT = 2.0 * sqrt(r_s * (R_FLAT - r_s)) - params.grid_warp_offset;
+
+        // This linear blending will flatten the Y position over the inner region.
+        return mix(flat_y, warpedY_at_RFLAT, blend_factor);
+    }
+
+    // --- 3. Termination Region: r < R_MIN_REJECT ---
+    else {
+        // Return an extremely deep value so the ray quickly oversteps this region.
+        return -r_s * 1000.0 - params.grid_warp_offset;
+    }
 }
 
 bool isOnGridLine(vec2 xz, out float strength) {
@@ -384,39 +417,88 @@ bool isOnGridLine(vec2 xz, out float strength) {
     strength = 0.0;
     return false;
 }
+// Function to compute the gradient of the warped grid height function f(x,z)
+vec2 calculateGridGradient(float x, float z) {
+    float r_s = params.schwarzschild_radius;
+    vec2 pos_bh_xz = params.black_hole_position.xz;
+    float r = length(vec2(x, z) - pos_bh_xz); // Radial distance 'r'
 
+    const float R_MIN = r_s * 0.1; // Match the R_MIN from WarpedY
+
+    // --- Termination Region: r < R_MIN ---
+    if (r < R_MIN) {
+        // The surface is an extremely deep, flat plane here. Gradient is 0.
+        return vec2(0.0);
+    }
+
+    // --- Inner & Outer Regions: r >= R_MIN ---
+    // ... (Your original gradient calculation using the r_s * |r - r_s| formula)
+    // You must re-implement the derivative logic here to match the function used in WarpedY.
+    // If you use the hyperbolic drop above, the gradient logic becomes complex.
+
+    // The safest way: use a simple numeric approximation for the gradient:
+    float h = 0.001; // Tiny step size for approximation
+    float y_r_plus_h = calculateWarpedGridY(x + h, z);
+    float y_r = calculateWarpedGridY(x, z);
+
+    // Simple Forward Difference
+    float df_dx_approx = (y_r_plus_h - y_r) / h;
+
+    // Repeat for Z
+    float y_z_plus_h = calculateWarpedGridY(x, z + h);
+    float df_dz_approx = (y_z_plus_h - y_r) / h;
+
+    // This numerically calculates the gradient of the surface Y(x, z).
+    return vec2(df_dx_approx, df_dz_approx);
+}
 bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStrength) {
     if (params.show_grid < 0.5) return false;
 
     float t = 0.0;
-    const int MAX_STEPS = 100; // Limit iterations to prevent freezing
-    const float HIT_EPSILON = 0.001; // The desired accuracy for the hit point
+    // FIX 1: Increase MAX_STEPS to allow convergence in the deep warp.
+    const int MAX_STEPS = 2048;
+    const float HIT_EPSILON = 0.001;
 
     // tFar is the max distance the ray will travel (your previous range)
-    float tFar = length(origin) + params.grid_range;
+    float tFar = length(origin) + params.grid_range * params.escape_radius;
+    // Added a constant for the singularity distance
+    const float SINGULARITY_RADIUS = 0.001;
 
     for (int i = 0; i < MAX_STEPS; ++i) {
         vec3 p = origin + dir * t;
 
         // --- Boundary/Exit Checks ---
         if (t > tFar) return false;
-        // Check XZ bounds (optional, but good for performance)
+
         float distXZ = length(p.xz);
-        if (distXZ > params.grid_range || distXZ < params.schwarzschild_radius) break;
+
+        // Check for leaving the bounding box
+        if (distXZ > params.grid_range * 5.0) {
+            if (distXZ > params.grid_range * 1.05) {
+                if (dot(p.xz, dir.xz) > 0.0) {
+                    break;
+                }
+            }
+        }
 
         // --- Core Sphere Tracing Logic ---
 
-        // 1. Calculate the signed vertical distance (f(t))
         float warpedY = calculateWarpedGridY(p.x, p.z);
-        float dist = p.y - warpedY; // Positive = above the surface; Negative = below
+        float dist = p.y - warpedY;
 
         // 2. Check for Intersection
         if (abs(dist) < HIT_EPSILON) {
-            // Found a hit point 'p' within epsilon of the surface.
-
+            // **THE CRITICAL FIX:** Reject the hit if it's within R_MIN
+            if (distXZ < params.schwarzschild_radius * .1) {
+                // If a grid line is hit too close to the center,
+                // we treat it as no hit and continue the ray march.
+                // Since the ray is now very close to the surface, advancing 't' by
+                // a tiny distance prevents an infinite loop.
+                t += HIT_EPSILON * 2.0;
+                continue; // Skip the acceptance logic and continue the loop
+            }
             float lineStr;
             if (isOnGridLine(p.xz, lineStr)) {
-                // Apply fading based on distance from the black hole (optional)
                 float fade = 1.0 - smoothstep(params.grid_range * 0.9, params.grid_range, distXZ);
                 gridStrength = params.grid_alpha * lineStr * fade;
                 return true;
@@ -424,11 +506,16 @@ bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStren
         }
 
         // 3. Adaptive Stepping
-        // We advance the ray by the absolute vertical distance 'dist'.
-        // This is a lower bound on the true distance, making it a safe step.
-        t += abs(dist);
+        vec2 gradXZ = calculateGridGradient(p.x, p.z);
+        float gradientMagnitude = length(gradXZ);
+
+        // FIX 3: Ensure denominator is never zero near r=r_s by adding a small epsilon.
+        float inverseGradient = 1.0 / sqrt(1.0 + gradientMagnitude * gradientMagnitude + 1e-6);
+        t += inverseGradient * abs(dist);
     }
 
+    // FIX 4: If MAX_STEPS is reached, return false (render black background).
+    // This is the source of your black discs, so increasing MAX_STEPS should shrink them.
     return false;
 }
 // --- Procedural Simplex Noise (snoise) for 3D Texture Replacement ---
