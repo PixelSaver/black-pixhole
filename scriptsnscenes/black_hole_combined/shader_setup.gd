@@ -58,7 +58,7 @@ var noise3d_tex: RID
 @export_range(0.5, 10.0) var grid_spacing := 2.0
 @export_range(0.01, 10.) var grid_line_thickness := 0.08
 @export_range(-50, 50) var grid_offset : float = 0
-@export_range(0.0, 1.0) var grid_alpha := 0.5
+@export_range(0.0, 10.0) var grid_alpha := 0.5
 @export_range(10.0, 100.0) var grid_range := 30.0
 @export var grid_color := Color(0.3, 0.8, 1.0, 1.0)
 

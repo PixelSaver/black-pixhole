@@ -553,6 +553,7 @@ float sampleY(vec3 at) {
 }
 
 float snoise(vec3 at) {
+    at *= 22.0779;
     float floored = floor(at.z);
     
     return interpolate(
@@ -696,7 +697,7 @@ vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, 
 
     ray_transmittance *= exp(-(total_density) * prox * step_val * 0.2);
 
-    return emission * params.nebula_intensity_scale;
+    return emission * params.nebula_intensity_scale * params.nebula_scale * .05;
 }
 // --- MAIN ---
 void main() {

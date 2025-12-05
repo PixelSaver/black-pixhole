@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://0i4lx2raarcw" path="res://scriptsnscenes/black_hole_combined/bh_compute.gd" id="1_stwnt"]
 [ext_resource type="Script" uid="uid://bbbea7qb6p6kx" path="res://scriptsnscenes/black_hole_combined/shader_setup.gd" id="2_c2cox"]
-[ext_resource type="Texture2D" uid="uid://bb1710gypta5u" path="res://scriptsnscenes/black_hole_combined/skybox_dondone.png" id="3_83yca"]
+[ext_resource type="Texture2D" uid="uid://cjxx4o1famh2t" path="res://icon.svg" id="3_83yca"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_83yca"]
 
@@ -34,27 +34,26 @@ zoom_speed = 1.0999999999999968
 [node name="ShaderSetup" type="Node" parent="ColorRect"]
 script = ExtResource("2_c2cox")
 resolution = Vector2i(320, 180)
-max_steps = 1000
-step_size = 0.4999999999999985
+max_steps = 1395
+step_size = 0.999999999999997
 escape_radius = 999.9999999999972
 skybox_texture = ExtResource("3_83yca")
-skybox_brightness = 3.587499999999989
+skybox_brightness = 0.01
 black_hole_color = Color(0, 0, 0, 1)
 camera_position = Vector3(1, 0, 19)
 disc_outer_radius = 14.77597999999997
 disc_thickness = 9.99999999999997
 disc_emission_strength = 57.30031999999983
 disc_noise_texture = SubResource("NoiseTexture2D_83yca")
-show_grid = false
 grid_spacing = 9.999999999999972
 grid_line_thickness = 1.310879999999996
 grid_offset = -19.19374000000009
-grid_alpha = 0.999999999999997
+grid_alpha = 9.99999999999997
 grid_range = 99.99999999999973
 grid_color = Color(1, 1, 1, 1)
-galaxy_scale = 11.379209999999965
+galaxy_scale = 15.595769999999954
 galaxy_rotation = Vector3(0, 0.03355, 1.03145)
-galaxy_intensity_scale = 1.071449999999997
+galaxy_intensity_scale = 1.2987099999999963
 galaxy_pos = Vector3(70, 0.0842, 30)
 
 [node name="Label" type="RichTextLabel" parent="ColorRect"]
