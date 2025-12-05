@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://bb1710gypta5u" path="res://scriptsnscenes/black_hole_combined/skybox_dondone.png" id="3_83yca"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_83yca"]
+frequency = 0.0243
 
 [sub_resource type="NoiseTexture2D" id="NoiseTexture2D_83yca"]
 width = 256
@@ -43,7 +44,7 @@ skybox_brightness = 0.01
 black_hole_color = Color(0, 0, 0, 1)
 camera_position = Vector3(1, 0, 19)
 disc_outer_radius = 14.77597999999997
-disc_thickness = 9.99999999999997
+disc_thickness = 13.423049999999959
 disc_emission_strength = 57.30031999999983
 disc_noise_texture = SubResource("NoiseTexture2D_83yca")
 grid_spacing = 9.999999999999972

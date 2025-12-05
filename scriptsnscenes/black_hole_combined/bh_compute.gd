@@ -5,7 +5,8 @@ extends TextureRect
 @export var max_distance := 1000.0
 @export var zoom_speed := 1.
 @export var fps_label : RichTextLabel
-var shader_fps_list := []
+const SMOOTHING_FACTOR = 0.01
+var avg_sfps := 0.0
 var camera_pos : Vector3 = Vector3(0,8,10)
 var target := Vector3.ZERO
 var distance := 60
@@ -21,26 +22,26 @@ func _ready() -> void:
 	shader_setup.shader_process_frame.connect(_on_shader_process)
 
 func _on_shader_process(_delta:float, frame_time:float):
-	var fps = Engine.get_frames_per_second()
-	var shader_fps = 1/frame_time
+	var fps = Performance.get_monitor(Performance.TIME_FPS)
+	var current_sfps = 1/frame_time
 	
-	shader_fps_list.push_front(shader_fps)
-	if shader_fps_list.size() > 10:
-		shader_fps_list.pop_back()
-	var avg_sfps = 0
-	for sfps in shader_fps_list:
-		avg_sfps += sfps
-	avg_sfps /= shader_fps_list.size()
+	if avg_sfps == 0.0:
+		avg_sfps = current_sfps
+	else:
+		avg_sfps = (current_sfps * SMOOTHING_FACTOR) + (avg_sfps * (1.0 - SMOOTHING_FACTOR))
 	
-	if shader_fps > fps*.9:
-		frames_to_wait += int(shader_fps/fps) + 1
-	
-	
+	if current_sfps > fps*.9:
+		frames_to_wait += int(current_sfps/fps) + 1
 	
 	fps_label.text = "[font_size=30]Engine FPS: %s\nShader FPS: %s[/font_size]" % [fps, snappedf(avg_sfps, .01)]
-	if shader_fps < 5:
+	fps_label.text += "\nMemory: %.2f MB" % (Performance.get_monitor(Performance.MEMORY_STATIC) / 1024.0 / 1024.0)
+	fps_label.text += "\nDraw Calls: %d" % Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+	fps_label.text += "\nVideo Memory Used: %.2f MB" % (Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1024.0 / 1024.0 )
+	
+	
+	if current_sfps < 5:
 		fps_label.text = "[color=red][shake]" + fps_label.text + "[/shake][/color]"
-	elif shader_fps < 10:
+	elif current_sfps < 10:
 		fps_label.text = "[color=yellow]" + fps_label.text + "[/color]"
 
 

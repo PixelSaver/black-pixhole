@@ -12,6 +12,12 @@ bh_node = NodePath("BHCompute/ColorRect/ShaderSetup")
 
 [node name="BHCompute" parent="." instance=ExtResource("5_pme2s")]
 
+[node name="ColorRect" parent="BHCompute" index="0" node_paths=PackedStringArray("fps_label")]
+fps_label = NodePath("../../UI/FPSLabel")
+
+[node name="Label" parent="BHCompute/ColorRect" index="1"]
+visible = false
+
 [node name="UI" type="Control" parent="." node_paths=PackedStringArray("fps_label", "controls_toggle")]
 layout_mode = 3
 anchors_preset = 15
@@ -26,19 +32,22 @@ fps_label = NodePath("FPSLabel")
 controls_toggle = NodePath("ControlsToggle")
 
 [node name="FPSLabel" type="RichTextLabel" parent="UI"]
-layout_mode = 0
-offset_right = 210.0
-offset_bottom = 123.0
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
+bbcode_enabled = true
 fit_content = true
 
-[node name="RuntimeInspector" parent="UI" instance=ExtResource("5_uu8of")]
+[node name="RuntimeInspector" parent="UI" node_paths=PackedStringArray("target_inspect") instance=ExtResource("5_uu8of")]
 layout_mode = 1
 anchor_left = 0.7
 grow_horizontal = 1
 grow_vertical = 1
 mouse_filter = 2
-show_private_properties = null
 value_column_max_width = 0
 property_label_min_x = 130
 spinbox_min_x = 0
@@ -46,7 +55,7 @@ vector_axis_label_width = 0
 vector_axis_spin_min_x = 0
 color_picker_width = 0
 color_picker_height = 0
-drag_speed_multiplier = null
+target_inspect = NodePath(".")
 
 [node name="ControlsToggle" type="Button" parent="UI"]
 layout_mode = 1

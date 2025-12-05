@@ -1,3 +1,4 @@
+@tool
 extends PanelContainer
 ## Runtime Inspector - Automatically generates UI for @export variables
 ## Usage: Add this to your scene, then call inspect(your_node)
@@ -20,6 +21,14 @@ class_name RuntimeInspector
 
 # Draggable speed modifier
 @export var drag_speed_multiplier: float = 20.0
+
+@export_group("Editor Inspect")
+@export var target_inspect : Node
+@export_tool_button("Inspect item")
+var inspect_thing := Callable(_custom_inspect)
+func _custom_inspect():
+	_setup_ui()
+	self.inspect(target_inspect)
 
 # SpinBox range limits (use large finite values instead of INF)
 const SPINBOX_MIN = -1e10
@@ -87,6 +96,7 @@ func inspect(target: Object):
 	print("Inspecting this property list: %s" % str(property_names))
 
 func _clear_properties():
+	if not _property_container: return
 	for child in _property_container.get_children():
 		child.queue_free()
 	_property_controls.clear()

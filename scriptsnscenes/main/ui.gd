@@ -7,8 +7,8 @@ class_name UI
 func _ready():
 	controls_toggle.connect("toggled", _on_controls_toggle)
 
-func _process(_delta: float) -> void:
-	fps_label.text = "FPS: " + str(Engine.get_frames_per_second())
+#func _process(_delta: float) -> void:
+	#fps_label.text = "FPS: " + str(Engine.get_frames_per_second())
 
 func _on_controls_toggle(toggled_on:bool):
 	if toggled_on:
