@@ -12,11 +12,36 @@ bh_node = NodePath("BHCompute/ColorRect/ShaderSetup")
 
 [node name="BHCompute" parent="." instance=ExtResource("5_pme2s")]
 
-[node name="ColorRect" parent="BHCompute" index="0" node_paths=PackedStringArray("fps_label")]
+[node name="ColorRect" parent="BHCompute" index="0" node_paths=PackedStringArray("fps_label", "pause_panel")]
+mouse_filter = 0
 fps_label = NodePath("../../UI/FPSLabel")
+pause_panel = NodePath("Panel")
 
 [node name="Label" parent="BHCompute/ColorRect" index="1"]
 visible = false
+
+[node name="Panel" type="Panel" parent="BHCompute/ColorRect" index="2"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="RichTextLabel" type="RichTextLabel" parent="BHCompute/ColorRect/Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+bbcode_enabled = true
+text = "[font_size=50][color=yellow][pulse]PAUSED[/pulse][/color][/font_size]"
+fit_content = true
+scroll_active = false
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="UI" type="Control" parent="." node_paths=PackedStringArray("fps_label", "controls_toggle")]
 layout_mode = 3

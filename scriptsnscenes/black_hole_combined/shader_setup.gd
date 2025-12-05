@@ -443,13 +443,14 @@ func _update_shader():
 	var curr = Time.get_unix_time_from_system()
 	var delta = curr-last_time
 	var frame_time = curr-frame_start_time
+	var frame_delay = rd.get_frame_delay()
 	last_time = curr
 
 	_display_result()
-	call_deferred("_emit_signal", delta, frame_time)
+	call_deferred("_emit_signal", delta, frame_time, frame_delay)
 
-func _emit_signal(delta: float, frame_time):
-	shader_process_frame.emit(delta, frame_time)
+func _emit_signal(delta: float, frame_time:float, frame_delay:float):
+	shader_process_frame.emit(delta, frame_time, frame_delay)
 
 # ----------------------------------------------------
 # --- DISPLAY / CLEANUP ---

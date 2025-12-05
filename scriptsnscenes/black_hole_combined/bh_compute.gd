@@ -5,6 +5,7 @@ extends TextureRect
 @export var max_distance := 1000.0
 @export var zoom_speed := 1.
 @export var fps_label : RichTextLabel
+@export var pause_panel: Panel
 const SMOOTHING_FACTOR = 0.01
 var avg_sfps := 0.0
 var camera_pos : Vector3 = Vector3(0,8,10)
@@ -21,7 +22,7 @@ var frames_to_wait : int = 0
 func _ready() -> void:
 	shader_setup.shader_process_frame.connect(_on_shader_process)
 
-func _on_shader_process(_delta:float, frame_time:float):
+func _on_shader_process(_delta:float, frame_time:float, frame_delay:float):
 	var fps = Performance.get_monitor(Performance.TIME_FPS)
 	var current_sfps = 1/frame_time
 	
@@ -34,7 +35,9 @@ func _on_shader_process(_delta:float, frame_time:float):
 		frames_to_wait += int(current_sfps/fps) + 1
 	
 	fps_label.text = "[font_size=30]Engine FPS: %s\nShader FPS: %s[/font_size]" % [fps, snappedf(avg_sfps, .01)]
-	fps_label.text += "\nMemory: %.2f MB" % (Performance.get_monitor(Performance.MEMORY_STATIC) / 1024.0 / 1024.0)
+	fps_label.text += "\nFrame Delay: %d" % frame_delay
+	fps_label.text += "\nRAM Free: %.2f MB" % (OS.get_memory_info().physical / 1024.0 / 1024.0)
+	fps_label.text += "\nStatic Memory: %.2f MB" % (Performance.get_monitor(Performance.MEMORY_STATIC) / 1024.0 / 1024.0)
 	fps_label.text += "\nDraw Calls: %d" % Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
 	fps_label.text += "\nVideo Memory Used: %.2f MB" % (Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1024.0 / 1024.0 )
 	
@@ -69,10 +72,12 @@ func _input(_event: InputEvent) -> void:
 	if Input.is_action_just_pressed("pause"):
 		if shader_setup._paused:
 			print("Unpaused")
+			pause_panel.hide()
 			shader_setup._paused = false
 			shader_setup._update_shader()
 		else:
 			print("Paused")
+			pause_panel.show()
 			shader_setup._paused = true
 
 func _process(_delta: float) -> void:
