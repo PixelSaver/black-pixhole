@@ -117,6 +117,70 @@ func inspect(target: Object):
 		_create_property_control(prop)
 	print("Inspecting this property list: %s" % str(property_names))
 
+func _process(_delta: float) -> void:
+	refresh()
+
+func refresh():
+	if not _current_target:
+		return
+	
+	# Iterate over all property controls currently in the UI
+	for prop_name in _property_controls:
+		var control = _property_controls[prop_name]
+		var current_value = _current_target.get(prop_name)
+		
+		# Call a new helper function to set the control's value
+		_update_control_value(control, current_value)
+
+# New helper function to abstract the control updating logic
+func _update_control_value(control: Control, value):
+	# This is where you map the Godot type to the control property
+	# Note: This is an incomplete example; you'd need cases for all control types
+	match control.get_class():
+		"SpinBox":
+			# For SpinBox (Int/Float)
+			if control.value != value:
+				control.value = value
+		"CheckButton":
+			# For CheckButton (Bool)
+			if control.button_pressed != value:
+				control.button_pressed = value
+		"LineEdit":
+			# For LineEdit (String/NodePath)
+			if control.text != value:
+				control.text = value
+		"ColorPickerButton":
+			# For ColorPickerButton (Color)
+			if control.color != value:
+				control.color = value
+		"VBoxContainer": # Assuming vector controls are inside a VBoxContainer
+			if value is Vector2:
+				# Assuming index 0 is X and index 1 is Y's HBoxContainer
+				var x_hbox = control.get_child(0) as HBoxContainer
+				var y_hbox = control.get_child(1) as HBoxContainer
+				
+				# Assuming the SpinBox is the second child of the HBoxContainer
+				var x_spin = x_hbox.get_child(1) as SpinBox 
+				var y_spin = y_hbox.get_child(1) as SpinBox
+				
+				if x_spin.value != value.x: x_spin.value = value.x
+				if y_spin.value != value.y: y_spin.value = value.y
+			elif value is Vector2i:
+				# Assuming index 0 is X and index 1 is Y's HBoxContainer
+				var x_hbox = control.get_child(0) as HBoxContainer
+				var y_hbox = control.get_child(1) as HBoxContainer
+				
+				# Assuming the SpinBox is the second child of the HBoxContainer
+				var x_spin = x_hbox.get_child(1) as SpinBox
+				var y_spin = y_hbox.get_child(1) as SpinBox
+				
+				if x_spin.value != value.x: x_spin.value = value.x
+				if y_spin.value != value.y: y_spin.value = value.y
+			#TODO Get vector3 and 3i here
+		_:
+			# For other controls (Labels for Objects/Generics)
+			pass
+
 func _create_category_header(_name: String):
 	# Create a prominent header for Categories (e.g., bold, larger text, separator)
 	var label = RichTextLabel.new()

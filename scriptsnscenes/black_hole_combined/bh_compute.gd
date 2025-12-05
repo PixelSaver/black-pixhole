@@ -65,6 +65,15 @@ func _gui_input(event: InputEvent) -> void:
 			target_distance = clamp(target_distance * 1.1, min_distance, max_distance)
 			needs_update = true
 	_update_camera_state()
+func _input(_event: InputEvent) -> void:
+	if Input.is_action_just_pressed("pause"):
+		if shader_setup._paused:
+			print("Unpaused")
+			shader_setup._paused = false
+			shader_setup._update_shader()
+		else:
+			print("Paused")
+			shader_setup._paused = true
 
 func _process(_delta: float) -> void:
 	if frames_to_wait > 0:

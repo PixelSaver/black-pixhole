@@ -15,19 +15,6 @@ bh_node = NodePath("BHCompute/ColorRect/ShaderSetup")
 [node name="ColorRect" parent="BHCompute" index="0" node_paths=PackedStringArray("fps_label")]
 fps_label = NodePath("../../UI/FPSLabel")
 
-[node name="ShaderSetup" parent="BHCompute/ColorRect" index="0"]
-black_hole_position = null
-schwarzschild_radius = null
-camera_fov = null
-use_scene_camera = null
-camera_target = null
-enable_disc = null
-disc_inner_radius = null
-disc_inner_color = null
-disc_outer_color = null
-show_grid = null
-show_galaxy = null
-
 [node name="Label" parent="BHCompute/ColorRect" index="1"]
 visible = false
 

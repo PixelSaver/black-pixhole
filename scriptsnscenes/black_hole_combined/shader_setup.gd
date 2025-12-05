@@ -35,7 +35,9 @@ const ASPECT = 16.0 / 9.0
 @export var skybox_texture: Texture2D = preload("res://scriptsnscenes/black_hole_combined/skybox_75.png")
 @export_range(0.01, 5.0) var skybox_brightness := 1.5
 var res_changed := false
+const MIN_TEXTURE_SIZE := Vector2i(32, 18)
 @onready var _resolution := resolution
+var _paused := false
 
 # Black Hole
 @export_group("Black Hole")
@@ -110,7 +112,21 @@ func _process(_delta):
 		# Defer by one frame
 		call_deferred("_apply_resolution_change")
 func _apply_resolution_change():
+	var view : Vector2i = get_viewport().get_visible_rect().size
+	# if resolution.x > lim:
+	# 	var ratio = lim / resolution.x
+	# 	resolution *= ratio
+	# if resolution.y > lim:
+	# 	var ratio = lim / resolution.y
+	# 	resolution *= ratio
+	if resolution.x > view.x || resolution.y > view.y:
+		resolution.x = view.x
+		print("Changed to: %s" % resolution)
+	elif resolution.x < MIN_TEXTURE_SIZE.x || resolution.y < MIN_TEXTURE_SIZE.y:
+		resolution.x = MIN_TEXTURE_SIZE.x
+		print("Changed to: %s" % resolution)
 	_resolution = resolution  # update internal resolution
+	
 	_resize_output()          # rebuild texture + uniform_set
 # ----------------------------------------------------
 # --- SETUP FUNCTIONS (Called Once) ---
@@ -125,14 +141,13 @@ func _setup_shader():
 func _setup_output_texture():
 	# Output texture (Remains the same - created once)
 	var fmt := RDTextureFormat.new()
-	fmt.width = resolution.x
-	fmt.height = resolution.y
+	fmt.width = _resolution.x
+	fmt.height = _resolution.y
 	fmt.format = RenderingDevice.DATA_FORMAT_R16G16B16A16_SFLOAT
 	fmt.usage_bits = RenderingDevice.TEXTURE_USAGE_STORAGE_BIT | \
 					 RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT | \
 					 RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | \
 					 RenderingDevice.TEXTURE_USAGE_CAN_COPY_FROM_BIT
-	print(RenderingDevice.LIMIT_MAX_TEXTURE_SIZE_2D)
 	output_tex = rd.texture_create(fmt, RDTextureView.new())
 
 func _create_sampler() -> RID:
@@ -383,7 +398,7 @@ func _resize_output():
 func _update_shader():
 	if not rd or not pipeline or not uniform_set.is_valid():
 		return
-	if is_dispatching: return
+	if is_dispatching or _paused: return
 	is_dispatching = true
 	frame_start_time = Time.get_unix_time_from_system()
 
