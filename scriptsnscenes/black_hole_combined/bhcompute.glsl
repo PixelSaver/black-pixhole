@@ -526,24 +526,24 @@ float random(vec3 x) {
 
 float interpolate(float a, float b, float c, float d, float x) {
     float p = (d - c) - (a - b);
-    
+
     return x * (x * (x * p + ((a - b) - p)) + (c - a)) + b;
 }
 
 float sampleX(vec3 at) {
     float floored = floor(at.x);
-    
+
     return interpolate(
         random(vec3(floored - 1.0, at.yz)),
         random(vec3(floored, at.yz)),
         random(vec3(floored + 1.0, at.yz)),
         random(vec3(floored + 2.0, at.yz)),
-    	at.x - floored) * 0.5 + 0.25;
+        at.x - floored) * 0.5 + 0.25;
 }
 
 float sampleY(vec3 at) {
     float floored = floor(at.y);
-    
+
     return interpolate(
         sampleX(vec3(at.x, floored - 1.0, at.z)),
         sampleX(vec3(at.x, floored, at.z)),
@@ -553,9 +553,10 @@ float sampleY(vec3 at) {
 }
 
 float snoise(vec3 at) {
-    at *= 22.0779;
+    // at *= 22.0779;
+    at *= 10. * 1.10499;
     float floored = floor(at.z);
-    
+
     return interpolate(
         sampleY(vec3(at.xy, floored - 1.0)),
         sampleY(vec3(at.xy, floored)),
@@ -616,28 +617,30 @@ mat4 rotationZ(float angle) {
 // Calculates emission and updates ray transmittance for a single geodesic step.
 // 'lp' is the position relative to the nebula center.
 // Returns the accumulated color for the step.
-vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, float et, vec3 camera_pos) {
+vec3 renderGalaxyVolume(vec3 lp, float step_val, inout float ray_transmittance, float et, vec3 camera_pos) {
     if (params.show_nebula < 0.5) return vec3(0.0);
-    float NEBULA_RADIUS = 100.0;
-    float NEBULA_HEIGHT = 20.0;
-
-    // 1. Define Rotation Matrices (Same as before)
+    float NEBULA_RADIUS = 10.; // Defines the size of the nebula *container* in its canonical frame (pre-scaling)
+    float NEBULA_HEIGHT = 10.0;
+    
+    // --- 1. Combined Transformation Matrix (M) ---
     mat4 R_x = rotationX(params.nebula_rotation_x);
     mat4 R_y = rotationY(params.nebula_rotation_y);
     mat4 R_z = rotationZ(params.nebula_rotation_z);
 
-    // Combined rotation matrix
+    // M combines rotation and scale. We'll perform the rotation first on the coordinates.
     mat4 R_combined = R_y * R_x * R_z;
+    float S_inv = 1.0 / max(params.nebula_scale, EPS);
+
+    // M_inv: Apply Inverse Scale (S_inv) then Inverse Rotation (transpose(R_combined))
+    // We use M_inv to transform the bent ray position (lp) back to the nebula's canonical space for bounds check.
     mat4 R_combined_inv = transpose(R_combined);
 
-    // --- 2. Calculate coordinates for Bounds Check (Inverse Rotation AND Inverse Scale) ---
+    // --- 2. BOUNDS CHECK (Canonical Coordinates: Inverse Transformation) ---
 
-    // First, apply the inverse scale to the local position (lp).
-    // If params.nebula_scale is S, we divide lp by S.
-    vec3 lp_scaled_inv = lp / max(params.nebula_scale, EPS);
+    // First, apply Inverse Scale (S_inv) to the local position (lp).
+    vec3 lp_scaled_inv = lp * S_inv;
 
-    // Then, apply the inverse rotation (R_combined_inv) to the inversely scaled position.
-    // lp_for_bounds is the ray's position transformed back into the nebula's *original, unit-scale* frame.
+    // Then, apply the Inverse Rotation to get the position in the original, unit-scale, un-rotated frame.
     vec3 lp_for_bounds = (R_combined_inv * vec4(lp_scaled_inv, 1.0)).xyz;
 
     // Use the bounds check against the *inverse* transformed position.
@@ -646,16 +649,20 @@ vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, 
         return vec3(0.0);
     }
 
-    // --- 3. Calculate Transformed Coordinates for Structure (Forward Rotation and Scale) ---
-    // (This part is identical to the previous version and is used for the density/noise calculations)
+    // --- 3. STRUCTURE SAMPLING (Pattern Coordinates: Forward Transformation) ---
 
+    // Apply the Forward Rotation to the bent ray position (lp).
     vec3 lp_rotated = (R_combined * vec4(lp, 1.0)).xyz;
-    vec3 lp_transformed = lp_rotated / params.nebula_scale;
+
+    // Apply the Forward Scale (S_inv) to create the coordinate space for the structure pattern.
+    // This is the coordinate set used for all density/noise calculations.
+    vec3 lp_transformed = lp_rotated * S_inv;
 
     // Now use lp_transformed for all subsequent noise and density calculations:
 
     float l = length(lp_transformed.xz);
 
+    // --- 4. DENSITY & COLOR CALCULATION (UNCHANGED) ---
     // ... (rest of the function remains unchanged, using lp_transformed and l) ...
     // --- 1. COORDINATE PORTING ---
     float ang = atan(lp_transformed.z, lp_transformed.x);
@@ -691,7 +698,7 @@ vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, 
     float total_density = spiral_density + core_density + dust_density + gas_density;
     float prox = tanh(distance(camera_pos, lp + params.black_hole_position + params.nebula_pos) * 0.4);
 
-    // --- 3. ACCUMULATION ---
+    // --- 5. ACCUMULATION (UNCHANGED) ---
     vec3 emission = prox * ray_transmittance * (star_col * vec3(spiral_density * 12.0 + core_density * 6.0 + vec3(0.7, 0.4, 0.3) * dust_density * 0.02) +
                 vec3(1.0, 0.3, 0.3) * gas_density * 8.0) * step_val * 2.0;
 
@@ -704,24 +711,16 @@ void main() {
     // // DEBUG
     // imageStore(output_image, ivec2(0), vec4(
     //     snoise(vec3(0., 0., 0.)),
-    //     0., 
-    //     0., 
+    //     0.,
+    //     0.,
     //     0.
     // ));
     // -------------------------------------
     ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
     ivec2 res = ivec2(params.resolution);
     if (pixel_coords.x >= res.x || pixel_coords.y >= res.y) return;
-    // DEBUG
-    // imageStore(output_image, pixel_coords, vec4(
-    //     snoise(vec3(pixel_coords.x, pixel_coords.y, 0.)),
-    //     snoise(vec3(0., pixel_coords.x, pixel_coords.y)), 
-    //     snoise(vec3(pixel_coords.x, pixel_coords.y, pixel_coords.x)), 
-    //     snoise(vec3(pixel_coords.x, pixel_coords.y, pixel_coords.y))
-    // ));
-    // return;
 
-    // ... (Camera and Initial Ray Setup remains the same) ...
+    // --- CAMERA SETUP ---
     vec3 forward = normalize(params.camera_target - params.camera_position);
     vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
     vec3 up = cross(right, forward);
@@ -729,95 +728,100 @@ void main() {
     vec2 uv = (vec2(pixel_coords) + 0.5) / vec2(res);
     uv = uv * 2.0 - 1.0;
     uv.x *= float(res.x) / float(res.y);
-    float tan_fov = tan(radians(params.camera_fov) * 0.5);
-    uv *= tan_fov;
+    uv *= tan(radians(params.camera_fov) * 0.5);
 
     vec3 ray_dir = normalize(uv.x * right - uv.y * up + forward);
     Ray ray = initRay(params.camera_position, ray_dir);
 
-    vec3 prev_pos_cart = vec3(ray.x, ray.y, ray.z);
-    vec3 total_disc_color = vec3(0.0);
-    vec3 color_out = vec3(0.05, 0.05, 0.08);
+    vec3 prev_pos_world = vec3(ray.x, ray.y, ray.z);
 
-    // --- Nebula Accumulators ---
+    // --- OUTPUT ACCUMULATORS ---
+    vec3 total_disc_color = vec3(0.0);
     vec3 total_nebula_color = vec3(0.0);
     float ray_transmittance = 1.0;
     float et = params.time * 0.05;
 
     bool hitBH = false;
+
+    // Optional: straight ray grid check
     bool straightHitGrid = false;
     float straightGridStrength = 0.0;
-
-    // --- STRAIGHT RAY GRID CHECK ---
     if (params.show_grid > 0.5) {
         straightHitGrid = checkGridIntersectionStraightRay(params.camera_position, ray_dir, straightGridStrength);
     }
 
-    // --- RAY MARCHING (Geodesic Integration) ---
+    // --- RAY MARCH LOOP (geodesic integration) ---
     for (float i = 0.0; i < params.max_steps; i += 1.0) {
+        // --- TERMINATE IF INSIDE BLACK HOLE ---
         if (ray.r <= params.schwarzschild_radius * 1.2) {
             hitBH = true;
             break;
         }
 
+        // --- ADAPTIVE STEP SIZE ---
         float step_val = getAdaptiveStepSize(ray.r);
         Ray prev_ray = ray;
-        if (ray.r > params.schwarzschild_radius * 2) {
+
+        if (ray.r > params.schwarzschild_radius * 2.0) {
             rk2Step(ray, step_val);
         } else {
             rk4Step(ray, step_val);
         }
 
-        vec3 new_pos_cart = vec3(ray.x, ray.y, ray.z);
+        vec3 curr_pos_world = vec3(ray.x, ray.y, ray.z);
+        vec3 mid_pos = mix(prev_pos_world, curr_pos_world, 0.5);
 
-        // --- VOLUME RENDERING STEP (Accretion Disc) ---
+        // --- ACCRETION DISC VOLUME ---
         if (params.show_disc > 0.5) {
             vec3 disc_step_color = renderDiscVolume(prev_ray, ray, step_val);
             total_disc_color += disc_step_color;
         }
 
-        // --- VOLUME RENDERING STEP (Nebula) ---
+        // --- NEBULA / GALAXY VOLUME ---
         if (params.show_nebula > 0.5) {
-            vec3 mid_pos = mix(prev_pos_cart, new_pos_cart, 0.5);
             vec3 pos_rel_bh = mid_pos - params.black_hole_position;
-            vec3 lp = pos_rel_bh - params.nebula_pos; // Position relative to nebula center
+            vec3 lp_world = pos_rel_bh - params.nebula_pos;
 
-            vec3 nebula_step_color = renderNebulaVolume(lp, step_val, ray_transmittance, et, params.camera_position);
+            vec3 nebula_step_color = renderGalaxyVolume(lp_world, step_val, ray_transmittance, et, params.camera_position);
             total_nebula_color += nebula_step_color;
         }
 
-        prev_pos_cart = new_pos_cart;
+        prev_pos_world = curr_pos_world;
+
+        // --- ESCAPE CONDITION ---
         if (ray.r > params.escape_radius) break;
     }
 
     // --- COMPOSITING ---
+    vec3 color_out;
+
     if (hitBH) {
         color_out = params.black_hole_color.rgb;
     } else {
-        // ... (Background/Skybox sampling remains the same) ...
+        // Sample skybox
         vec3 final_dir = normalize(vec3(ray.x, ray.y, ray.z) - params.black_hole_position);
         float phi = atan(final_dir.z, final_dir.x);
         float theta = acos(final_dir.y);
         float u = phi / (2.0 * PI) + 0.5;
         float v = theta / PI;
         vec3 sky_color = texture(skybox_sampler, vec2(u, v)).rgb;
-
         color_out = sky_color * params.skybox_brightness;
 
-        // Spacetime Grid (Straight Ray Check)
+        // Optional spacetime grid overlay
         if (straightHitGrid) {
             color_out = mix(color_out, params.grid_color.rgb, straightGridStrength);
         }
 
-        // 1. Blend the accumulated nebula light over the background.
+        // Blend nebula additive
         color_out = total_nebula_color + color_out * ray_transmittance;
     }
 
-    // 4. Accretion Disc (Blended over BH/Sky/Grid/Nebula) - Additive for emission
+    // Blend accretion disc over everything
     color_out = total_disc_color + color_out;
 
-    // Optional: Clamp/Tone Map to prevent oversaturation
+    // Clamp to avoid oversaturation
     color_out = clamp(color_out, 0.0, 4.0);
 
+    // Write final color
     imageStore(output_image, pixel_coords, vec4(color_out, 1.0));
 }
