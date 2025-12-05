@@ -519,82 +519,49 @@ bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStren
     return false;
 }
 // --- Procedural Simplex Noise (snoise) for 3D Texture Replacement ---
-// A common 3D Simplex noise function
-// The actual implementation details are long, but here is a placeholder/summary
-// You must include the full function code here.
-
-vec4 permute(vec4 x) {
-    return mod(((x * 34.0) + 1.0) * x, 289.0);
+// Source: https://www.reddit.com/r/proceduralgeneration/comments/gc39q8/3d_cubic_noise_in_glsl_a_very_simple_random_noise/
+float random(vec3 x) {
+    return texture(noise_sampler, x.xy * 124.03 + x.z * 0.1).r;
 }
 
-vec4 taylorInvSqrt(vec4 r) {
-    return 1.79284291400159 - 0.85373472095314 * r;
+float interpolate(float a, float b, float c, float d, float x) {
+    float p = (d - c) - (a - b);
+    
+    return x * (x * (x * p + ((a - b) - p)) + (c - a)) + b;
 }
 
-// [0-1]
-float snoise(vec3 v) {
-    const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
-    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-
-    // First corner
-    vec3 i = floor(v + dot(v, C.yyy));
-    vec3 x0 = v - i + dot(i, C.xxx);
-
-    // Other corners
-    vec3 g = step(x0.yzx, x0.xyz);
-    vec3 l = 1.0 - g;
-    vec3 i1 = min(g.xyz, l.zxy);
-    vec3 i2 = max(g.xyz, l.zxy);
-
-    //   x0 = x0 - 0.0 + 0.0 * C.xxx;
-    //   x1 = x0 - i1  + 1.0 * C.xxx;
-    //   x2 = x0 - i2  + 2.0 * C.xxx;
-    //   x3 = x0 - 1.0 + 3.0 * C.xxx;
-    vec3 x1 = x0 - i1 + C.xxx;
-    vec3 x2 = x0 - i2 + C.yyy; // 2.0*C.x = 1/3 = C.y
-    vec3 x3 = x0 - D.yyy; // 1.0 - 3.0*C.x = 0.5 = D.y
-
-    // Permutations
-    i = mod(i, 289.0);
-    vec4 p = permute(permute(permute(
-                    i.z + vec4(0.0, i1.z, i2.z, 1.0))
-                    + i.y + vec4(0.0, i1.y, i2.y, 1.0))
-                + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-
-    // Gradients: 7x7 points uniformly over a square, mapped onto an octahedron.
-    // The ring size of 17*17 = 289 is passed to *p below.
-    vec4 j4 = 4.0 * mod(mod(p, 34.0), 13.0) - 13.0;
-    vec4 j = mod(mod(p, 34.0), 13.0) - 6.5;
-
-    vec4 x4 = abs(j4);
-    vec4 z = 1.0 - step(x4, j);
-    vec4 jz = (j4 + (j4 - x4) / 4.0) * z;
-
-    vec4 gr = p.wzyx * 2.0 + jz.xzxz; // 2 * grad
-    vec4 xg = (gr - D.w) + D.yyzz; // grad - 4 * ceil(grad/4)
-
-    // Gradients
-    vec3 n0 = vec3(xg.x, xg.y, gr.x);
-    vec3 n1 = vec3(xg.z, xg.w, gr.y);
-    vec3 n2 = vec3(xg.w, xg.z, gr.z);
-    vec3 n3 = vec3(xg.z, xg.w, gr.w);
-
-    // Normalise gradients
-    vec4 t = taylorInvSqrt(vec4(dot(n0, n0), dot(n1, n1), dot(n2, n2), dot(n3, n3)));
-    n0 *= t.x;
-    n1 *= t.y;
-    n2 *= t.z;
-    n3 *= t.w;
-
-    // The domain expansion makes the maximum value of the polynomial 2.0
-    // and the minimum -2.0. So scale and shift to the range [0, 1].
-    // Attenuation
-    vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
-    m = m * m;
-    float noise = 0.5 + 0.5 * dot(m * m, vec4(dot(n0, x0), dot(n1, x1), dot(n2, x2), dot(n3, x3)));
-    return 0.5;
+float sampleX(vec3 at) {
+    float floored = floor(at.x);
+    
+    return interpolate(
+        random(vec3(floored - 1.0, at.yz)),
+        random(vec3(floored, at.yz)),
+        random(vec3(floored + 1.0, at.yz)),
+        random(vec3(floored + 2.0, at.yz)),
+    	at.x - floored) * 0.5 + 0.25;
 }
 
+float sampleY(vec3 at) {
+    float floored = floor(at.y);
+    
+    return interpolate(
+        sampleX(vec3(at.x, floored - 1.0, at.z)),
+        sampleX(vec3(at.x, floored, at.z)),
+        sampleX(vec3(at.x, floored + 1.0, at.z)),
+        sampleX(vec3(at.x, floored + 2.0, at.z)),
+        at.y - floored);
+}
+
+float snoise(vec3 at) {
+    float floored = floor(at.z);
+    
+    return interpolate(
+        sampleY(vec3(at.xy, floored - 1.0)),
+        sampleY(vec3(at.xy, floored)),
+        sampleY(vec3(at.xy, floored + 1.0)),
+        sampleY(vec3(at.xy, floored + 2.0)),
+        at.z - floored);
+}
 // --- Rotation helpers ---
 
 mat4 rotationMatrix(vec3 axis, float angle) {
@@ -712,6 +679,7 @@ vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, 
     float lpy2 = lp_transformed.y * lp_transformed.y;
     float factor = (1.0 + tanh(3.0 * r_density)) * 0.6 * max(0.0, 0.42 - pow(diff, 2.0));
 
+    // DEBUG
     float spiral_density = (0.5 * max(0.0, 1.15 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - sqrt(0.045 * l2 + 24.0 * lpy2)) * (1.5 * n + 0.55) * 0.4;
     float core_density = 40.0 * pow(max(0.0, 0.45 - sqrt(0.3 * lp_transformed.x * lp_transformed.x + lp_transformed.z * lp_transformed.z + 3.0 * lpy2)), 2.0) + 5.0 * pow(max(0.0, 0.65 - sqrt(0.45 * lp_transformed.x * lp_transformed.x + lp_transformed.z * lp_transformed.z + 4.0 * lpy2)), 1.5) * (n + 0.5);
     float particle_density = (0.3 * max(0.0, 1.25 - pow(diff, 0.15)) + factor) * max(0.0, 1.0 - pow(0.045 * l2 + 16.0 * lpy2, 4.0)) * (1.0 - abs(4.0 * lp_transformed.y)) * 400.0;
@@ -734,15 +702,23 @@ vec3 renderNebulaVolume(vec3 lp, float step_val, inout float ray_transmittance, 
 void main() {
     // // DEBUG
     // imageStore(output_image, ivec2(0), vec4(
-    //     params.show_grid,
-    //     params.grid_spacing/20.,
-    //     params.grid_line_thickness / 20.,
-    //     params.grid_alpha
+    //     snoise(vec3(0., 0., 0.)),
+    //     0., 
+    //     0., 
+    //     0.
     // ));
     // -------------------------------------
     ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
     ivec2 res = ivec2(params.resolution);
     if (pixel_coords.x >= res.x || pixel_coords.y >= res.y) return;
+    // DEBUG
+    // imageStore(output_image, pixel_coords, vec4(
+    //     snoise(vec3(pixel_coords.x, pixel_coords.y, 0.)),
+    //     snoise(vec3(0., pixel_coords.x, pixel_coords.y)), 
+    //     snoise(vec3(pixel_coords.x, pixel_coords.y, pixel_coords.x)), 
+    //     snoise(vec3(pixel_coords.x, pixel_coords.y, pixel_coords.y))
+    // ));
+    // return;
 
     // ... (Camera and Initial Ray Setup remains the same) ...
     vec3 forward = normalize(params.camera_target - params.camera_position);
