@@ -37,7 +37,8 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 bbcode_enabled = true
-text = "[font_size=50][color=yellow][pulse]PAUSED[/pulse][/color][/font_size]"
+text = "[pulse][font_size=50][color=yellow]PAUSED[/color][/font_size]
+Shift to unpause[/pulse]"
 fit_content = true
 scroll_active = false
 horizontal_alignment = 1

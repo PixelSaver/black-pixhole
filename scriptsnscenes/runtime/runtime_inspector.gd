@@ -1,4 +1,3 @@
-@tool
 extends PanelContainer
 ## Runtime Inspector - Automatically generates UI for @export variables
 ## Usage: Add this to your scene, then call inspect(your_node)
@@ -70,16 +69,28 @@ func inspect(target: Object):
 
 	var properties = target.get_property_list()
 	var property_names = []
+	var avoid_props = [
+		"process",
+		"thread_group",
+		"physics_interpolation",
+		"auto_translate",
+		"editor_description",
+		"shader_setup.gd",
+	]
 	
 	# Current group/category tracking for UI organization
 	var current_group_name = ""
 	var current_category_name = ""
 
 	for prop in properties:
-
+		
 		
 		# These properties are not actual variables; they are organizational hints
 		if prop.usage & PROPERTY_USAGE_CATEGORY or prop.usage & PROPERTY_USAGE_GROUP or prop.usage & PROPERTY_USAGE_SUBGROUP:
+			#if (prop.usage & PROPERTY_USAGE_SCRIPT_VARIABLE): continue
+			if prop.name.to_snake_case() in avoid_props:
+				print("Skipped: %s" % prop.name)
+				continue
 			print("Group: %s" % prop.name)
 			# Godot uses PROPERTY_USAGE_CATEGORY for groups, subgroups, and categories
 			
@@ -88,8 +99,9 @@ func inspect(target: Object):
 				# Example: @export_category("Rendering")
 				var new_category = prop.name.replace(":", "").replace("/", "") # Clean up name
 				if new_category != current_category_name:
-					_create_category_header(new_category)
 					current_category_name = new_category
+					if new_category != target.get_class():
+						_create_category_header(new_category)
 					current_group_name = "" # Reset group when entering a new category
 				continue
 				
@@ -101,10 +113,9 @@ func inspect(target: Object):
 					_create_group_header(new_group, prop.usage & PROPERTY_USAGE_SUBGROUP)
 					current_group_name = new_group
 				continue
-		if prop.usage & PROPERTY_USAGE_EDITOR == 0:
-			continue
-		
 		if not (prop.usage & PROPERTY_USAGE_SCRIPT_VARIABLE):
+			continue
+		if prop.usage & PROPERTY_USAGE_EDITOR == 0:
 			continue
 
 		if not show_private_properties and prop.name.begins_with("_"):
