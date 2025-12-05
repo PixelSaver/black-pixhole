@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://0i4lx2raarcw" path="res://scriptsnscenes/black_hole_combined/bh_compute.gd" id="1_stwnt"]
 [ext_resource type="Script" uid="uid://bbbea7qb6p6kx" path="res://scriptsnscenes/black_hole_combined/shader_setup.gd" id="2_c2cox"]
-[ext_resource type="Texture2D" uid="uid://cjxx4o1famh2t" path="res://icon.svg" id="3_83yca"]
+[ext_resource type="Texture2D" uid="uid://bb1710gypta5u" path="res://scriptsnscenes/black_hole_combined/skybox_dondone.png" id="3_83yca"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_83yca"]
 
@@ -21,7 +21,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="ColorRect" type="TextureRect" parent="."]
+[node name="ColorRect" type="TextureRect" parent="." node_paths=PackedStringArray("fps_label")]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -30,6 +30,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_stwnt")
 zoom_speed = 1.0999999999999968
+fps_label = NodePath("Label")
 
 [node name="ShaderSetup" type="Node" parent="ColorRect"]
 script = ExtResource("2_c2cox")
@@ -61,8 +62,7 @@ layout_mode = 0
 offset_right = 1050.0
 offset_bottom = 106.0
 bbcode_enabled = true
-text = "[font_size=40]Hiii"
+text = "[font_size=30]Hiii"
 fit_content = true
 scroll_active = false
-horizontal_alignment = 1
 vertical_alignment = 1

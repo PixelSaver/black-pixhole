@@ -2,58 +2,15 @@
 
 [ext_resource type="Script" uid="uid://c7snsrnf1kwvy" path="res://scriptsnscenes/main/main.gd" id="1_j6fwf"]
 [ext_resource type="Theme" uid="uid://6oyaqbjwdos" path="res://assets/theme.tres" id="2_kxkkf"]
-[ext_resource type="PackedScene" uid="uid://c8eg3lxxp6dkk" path="res://scriptsnscenes/hole_3d_attempt2/3drk_4_att_2.tscn" id="2_ofk34"]
 [ext_resource type="Script" uid="uid://7au6fmb2j36d" path="res://scriptsnscenes/main/ui.gd" id="4_uh2b8"]
+[ext_resource type="PackedScene" uid="uid://bajm6dqruukuw" path="res://scriptsnscenes/black_hole_combined/bh_compute.tscn" id="5_pme2s"]
 [ext_resource type="PackedScene" uid="uid://b4cmo5a1pjixl" path="res://scriptsnscenes/runtime/runtime_inspector.tscn" id="5_uu8of"]
 
-[node name="Main" type="CanvasLayer"]
+[node name="Main" type="CanvasLayer" node_paths=PackedStringArray("bh_node")]
 script = ExtResource("1_j6fwf")
+bh_node = NodePath("BHCompute/ColorRect/ShaderSetup")
 
-[node name="3DRK4_Att2" parent="." node_paths=PackedStringArray("pause") instance=ExtResource("2_ofk34")]
-focus_mode = 1
-pause = NodePath("SubViewportContainer/SubViewport/ShaderRect")
-min_distance = null
-max_distance = null
-zoom_speed = 10.0
-
-[node name="SubViewportContainer" parent="3DRK4_Att2" index="0"]
-mouse_filter = 2
-
-[node name="ShaderRect" parent="3DRK4_Att2/SubViewportContainer/SubViewport" index="0"]
-process_mode = 1
-mouse_filter = 2
-
-[node name="ShaderController" parent="3DRK4_Att2/SubViewportContainer/SubViewport/ShaderRect" index="0"]
-black_hole_position = null
-schwarzschild_radius = null
-black_hole_color = null
-background_color = null
-max_steps = null
-step_size = null
-escape_radius = null
-camera_fov = null
-disc_inner_radius = null
-disc_outer_radius = null
-disc_inner_color = null
-disc_outer_color = null
-disc_thickness = null
-star_color = null
-star_brightness = null
-star_density = null
-star_size_scale = null
-show_grid = null
-grid_color = null
-grid_spacing = null
-grid_line_thickness = null
-grid_alpha = null
-grid_range = null
-grid_warp_offset = null
-bigstar_center = null
-bigstar_radius = null
-bigstar_emission = null
-bigstar_surface_brightness = null
-bigstar_halo = null
-viewport_size = null
+[node name="BHCompute" parent="." instance=ExtResource("5_pme2s")]
 
 [node name="UI" type="Control" parent="." node_paths=PackedStringArray("fps_label", "controls_toggle")]
 layout_mode = 3
@@ -81,6 +38,7 @@ anchor_left = 0.7
 grow_horizontal = 1
 grow_vertical = 1
 mouse_filter = 2
+show_private_properties = null
 value_column_max_width = 0
 property_label_min_x = 130
 spinbox_min_x = 0
@@ -88,6 +46,7 @@ vector_axis_label_width = 0
 vector_axis_spin_min_x = 0
 color_picker_width = 0
 color_picker_height = 0
+drag_speed_multiplier = null
 
 [node name="ControlsToggle" type="Button" parent="UI"]
 layout_mode = 1
@@ -112,4 +71,4 @@ text = "Toggle Controls"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[editable path="3DRK4_Att2"]
+[editable path="BHCompute"]

@@ -15,9 +15,6 @@ var params_buffer: RID # Permanent Uniform Buffer RID
 var noise_tex: RID # Permanent Noise Texture RID
 var skybox_rd_tex: RID # Permanent Skybox Texture RID
 
-# --- New: 3D Noise Texture RID ---
-var noise3d_tex: RID
-
 # --- Export Variables (Updated) ---
 # Rendering
 @export_group("Rendering")
@@ -332,9 +329,7 @@ func _update_shader():
 		# Update the contents of the existing buffer RID
 		rd.buffer_update(params_buffer, 0, new_params_data.size(), new_params_data)
 
-	 # 2. UPDATE NOISE TEXTURE DATA (Only if the source texture is dynamic)
-	 # This is currently skipped to avoid re-uploading a static noise texture.
-	 # If the noise changes, uncomment this:
+	 # Only updates once since it takes ages to load, its smooth at first but then loads in
 	if update_noise_texture:
 		var new_noise_image: Image = _get_noise_image_data_full()
 		if noise_tex.is_valid():
@@ -400,9 +395,6 @@ func _exit_tree():
 		rd.free_rid(params_buffer)
 		rd.free_rid(noise_tex)
 		rd.free_rid(skybox_rd_tex)
-		# 🌟 NEW: Free 3D noise texture
-		if noise3d_tex.is_valid():
-			rd.free_rid(noise3d_tex)
 		if uniform_set.is_valid():
 			rd.free_rid(uniform_set)
 		# Free the local rendering device itself last

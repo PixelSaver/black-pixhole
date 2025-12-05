@@ -136,6 +136,8 @@ func _create_control_for_type(type: int, value, prop: Dictionary):
 			return _create_string_control(value, prop.name)
 		TYPE_VECTOR2:
 			return _create_vector2_control(value, prop.name)
+		TYPE_VECTOR2I:
+			return _create_vector2i_control(value, prop.name)
 		TYPE_VECTOR3:
 			return _create_vector3_control(value, prop.name)
 		TYPE_COLOR:
@@ -306,6 +308,71 @@ func _create_vector2_control(value: Vector2, prop_name: String) -> VBoxContainer
 	)
 	hbox_y.add_child(y_spin)
 
+	vbox.add_child(hbox_y)
+
+	return vbox
+
+func _create_vector2i_control(value: Vector2i, prop_name: String) -> VBoxContainer:
+	var vbox = VBoxContainer.new()
+
+	# X axis
+	var hbox_x = HBoxContainer.new()
+	var x_label = Label.new()
+	x_label.text = "X"
+	x_label.custom_minimum_size.x = vector_axis_label_width
+	x_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	hbox_x.add_child(x_label)
+
+	var x_spin = SpinBox.new()
+	x_spin.min_value = SPINBOX_MIN
+	x_spin.max_value = SPINBOX_MAX
+	x_spin.step = 1
+	x_spin.value = value.x
+	x_spin.allow_greater = true
+	x_spin.allow_lesser = true
+	x_spin.custom_minimum_size.x = vector_axis_spin_min_x
+	x_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	x_spin.value_changed.connect(func(v):
+		var vec = _current_target.get(prop_name)
+		_on_property_changed(prop_name, Vector2i(int(v), vec.y))
+	)
+
+	_add_draggable_to_spinbox(x_spin, prop_name, func(delta):
+		x_spin.value += delta
+	)
+
+	hbox_x.add_child(x_spin)
+	vbox.add_child(hbox_x)
+
+	# Y axis
+	var hbox_y = HBoxContainer.new()
+	var y_label = Label.new()
+	y_label.text = "Y"
+	y_label.custom_minimum_size.x = vector_axis_label_width
+	y_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	hbox_y.add_child(y_label)
+
+	var y_spin = SpinBox.new()
+	y_spin.min_value = SPINBOX_MIN
+	y_spin.max_value = SPINBOX_MAX
+	y_spin.step = 1
+	y_spin.value = value.y
+	y_spin.allow_greater = true
+	y_spin.allow_lesser = true
+	y_spin.custom_minimum_size.x = vector_axis_spin_min_x
+	y_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	y_spin.value_changed.connect(func(v):
+		var vec = _current_target.get(prop_name)
+		_on_property_changed(prop_name, Vector2i(vec.x, int(v)))
+	)
+
+	_add_draggable_to_spinbox(y_spin, prop_name, func(delta):
+		y_spin.value += delta
+	)
+
+	hbox_y.add_child(y_spin)
 	vbox.add_child(hbox_y)
 
 	return vbox

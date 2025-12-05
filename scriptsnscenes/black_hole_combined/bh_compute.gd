@@ -4,6 +4,8 @@ extends TextureRect
 @export var min_distance := 10.0
 @export var max_distance := 1000.0
 @export var zoom_speed := 1.
+@export var fps_label : RichTextLabel
+var shader_fps_list := []
 var camera_pos : Vector3 = Vector3(0,8,10)
 var target := Vector3.ZERO
 var distance := 60
@@ -22,10 +24,24 @@ func _on_shader_process(_delta:float, frame_time:float):
 	var fps = Engine.get_frames_per_second()
 	var shader_fps = 1/frame_time
 	
-	if shader_fps < 10:
-		print("Shader fps: %s\nEngine fps: %s", [shader_fps, fps])
+	shader_fps_list.push_front(shader_fps)
+	if shader_fps_list.size() > 10:
+		shader_fps_list.pop_back()
+	var avg_sfps = 0
+	for sfps in shader_fps_list:
+		avg_sfps += sfps
+	avg_sfps /= shader_fps_list.size()
+	
 	if shader_fps > fps*.9:
 		frames_to_wait += int(shader_fps/fps) + 1
+	
+	
+	
+	fps_label.text = "[font_size=30]Engine FPS: %s\nShader FPS: %s[/font_size]" % [fps, snappedf(avg_sfps, .01)]
+	if shader_fps < 5:
+		fps_label.text = "[color=red][shake]" + fps_label.text + "[/shake][/color]"
+	elif shader_fps < 10:
+		fps_label.text = "[color=yellow]" + fps_label.text + "[/color]"
 
 
 # Called when the user provides input (e.g., mouse move/scroll)
