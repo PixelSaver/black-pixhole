@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://bajm6dqruukuw"]
+[gd_scene load_steps=6 format=3 uid="uid://bajm6dqruukuw"]
 
 [ext_resource type="Script" uid="uid://0i4lx2raarcw" path="res://scriptsnscenes/black_hole_combined/bh_compute.gd" id="1_stwnt"]
 [ext_resource type="Script" uid="uid://bbbea7qb6p6kx" path="res://scriptsnscenes/black_hole_combined/shader_setup.gd" id="2_c2cox"]
+[ext_resource type="Texture2D" uid="uid://bb1710gypta5u" path="res://scriptsnscenes/black_hole_combined/skybox_dondone.png" id="3_83yca"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_83yca"]
 
@@ -36,6 +37,7 @@ resolution = Vector2i(320, 180)
 max_steps = 1000
 step_size = 0.4999999999999985
 escape_radius = 999.9999999999972
+skybox_texture = ExtResource("3_83yca")
 skybox_brightness = 3.587499999999989
 black_hole_color = Color(0, 0, 0, 1)
 camera_position = Vector3(1, 0, 19)

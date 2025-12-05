@@ -35,7 +35,7 @@ func _gui_input(event: InputEvent) -> void:
 
 	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		yaw -= event.relative.x * rotation_speed 
-		pitch = clamp(pitch + event.relative.y * rotation_speed, -PI/2.0 + 0.001, PI/2.0 - 0.001)
+		pitch = clamp(pitch + event.relative.y * rotation_speed, -PI/2.0 + 0.1, PI/2.0 - 0.1)
 		_update_camera_state()
 		needs_update = true
 		
@@ -58,6 +58,7 @@ func _process(_delta: float) -> void:
 
 # Calculates the spherical coordinates into a cartesian position
 func _update_camera_state():
+	
 	distance = target_distance
 	var x = distance * cos(pitch) * sin(yaw)
 	var y = distance * sin(pitch)
