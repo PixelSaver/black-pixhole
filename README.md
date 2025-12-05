@@ -50,31 +50,42 @@
 ### Overall
 Built for Siege Week 10, for the 'Space' theme. As space as it gets, right? This one was so much more shader than I expected, and yet I want to try and expose a bunch of shader parameters. Unless someone shows me an easy way to give someone access to a number with godot UI though, I'll just stick with nothing for now. *sigh* Oh well. I could make this bigger or add this in somewhere or make this my wallpaper though... Wait... If I optimize this?? Someone please help that would be awesome.
 
+From Siege W14 (THE LAST ONE) I turned the web version into a compute shader, and upped the capabilities of the shader because of it. I will keep the github pages version up if you still want to, but if this github repo doesn't get starred I won't work on either the web or the compute shader version. AKA If you like it, STAR!! Thanks for visiting!
+
 ### What even is this?
-A black hole simulation to rival Interstellar!!! No, its a realtime black hole raytracer with an accretion disk, a star, and a grid to show the bending of spacetime. May your computer live to see another day.
+A black hole simulation to rival Interstellar!!! No, its a realtime black hole raytracer with a volumetric accretion disk, a volumetric galaxy, and a grid to show the bending of spacetime. May your computer live to see another day.
 * Left click to drag camera around black hole
 * Scroll to zoom around the black hole
 * Edit the parameters of the shader by yourself! Click and drag or edit the values directly
+* Shift to pause the game
+
 
 ### What do I take out of this?
-Math. Physics. Fragment shaders. I hate that I had to have such long conversations with ai to understand any of this... But I mostly understand it now?? Also how to work with fragment shaders! Fun! Also, I finally made a simulation editor, which makes making simulators much easier... :)
+Math. Physics. Fragment shaders. I hate that I had to have such long conversations with ai to understand any of this... But I mostly understand it now?? Also how to work with fragment shaders! Fun! Also, I finally made a simulation editor, which makes making simulators much easier... :) 
+
+From my second round of development on this project... I have a love hate relationship with compute shaders and Godot. It works so much faster, but the process is so weird and finnicky... The shader setup node is so large just to get the compute shader running haha. Actually, I still havent gotten sampler3D's figured out, hence why I have a 3D Noise function in my code.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Screenshots
 Might be big, so click to reveal!
 <details>
-  <summary><strong>Main image</strong></summary>
+  <summary><strong>Screenshot of the compute shader</strong></summary>
+  <img src="media/img2.png" alt="Screenshot of the added simulation controls">
+</details>
+
+<details>
+  <summary><strong>The github pages version</strong></summary>
   <img src="media/img1.png" alt="Screenshot of the black hole lensing the star with a grid">
 </details>
 
 <details>
-  <summary><strong>Controls</strong></summary>
+  <summary><strong>Controls for the github pages version</strong></summary>
   <img src="media/controls.png" alt="Screenshot of the added simulation controls">
 </details>
 
 > [!TIP]
-> Scroll! Look around! Have fun! Change the values!!!
+> Change the camera_target value to change where the camera is looking!
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -96,7 +107,7 @@ Might be big, so click to reveal!
 
 ### Play
 
-If you still insist on building this unoptimized mess, go ahead. Oh, but the release version is [here](https://pixelsaver.github.io/black-pixhole/)
+If you still insist on building this unoptimized mess, go ahead. Oh, but the release (web) version is [here](https://pixelsaver.github.io/black-pixhole/). For the newer, compute version, check the releases tab
 
 1. Install Godot 4.5
 2. Download and unzip the code
@@ -107,6 +118,10 @@ If you still insist on building this unoptimized mess, go ahead. Oh, but the rel
 #### Tutorial
 * Left click and drag to pan camera around the black hole
 * Scroll to zoom closer and farther
+* Shift to pause
+* Click and drag values, or edit them directly
+* Click toggle controls to toggle the control visibility
+
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -115,15 +130,17 @@ If you still insist on building this unoptimized mess, go ahead. Oh, but the rel
 - [X] Simulate the black hole
   - [X] Raytracing?
   - [X] Render accretion disk
-  - [ ] Stars in the background
+  - [x] Stars in the background
   - [X] Spherical star to show gravitaitonal lensing
-  - [ ] Simulation interactivity, time step, pause, etc
-  - [ ] Post processing (bloom etc)
+  - [x] Simulation interactivity, time step, pause, etc
+  - [X] Add a volumetric galaxy 
   - [X] Put a grid under it to show a point of non-moving
 - [X] Make it interactible, move the camera around using mouse position
   - [X] Edit the simulation yourself using the access to the simulator
+  - [ ] Turn the editor runtime_inspector class into a gdextension maybe?
+- [ ] Post processing (bloom etc)
 ### Notes
-A few of the editor values don't work. Maybe will fix later, but the big star follows the black hole position, the camera fov doesn't change anything, and all of the smaller star stuff doesn't work as of now. Sorry...
+Since this is running on a compute shader, it doesn't work on web. I'm pissed too, but maybe one day I'll turn it into a spatial shader or something.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
