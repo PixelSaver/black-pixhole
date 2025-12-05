@@ -22,14 +22,6 @@ class_name RuntimeInspector
 # Draggable speed modifier
 @export var drag_speed_multiplier: float = 20.0
 
-@export_group("Editor Inspect")
-@export var target_inspect : Node
-@export_tool_button("Inspect item")
-var inspect_thing := Callable(_custom_inspect)
-func _custom_inspect():
-	_setup_ui()
-	self.inspect(target_inspect)
-
 # SpinBox range limits (use large finite values instead of INF)
 const SPINBOX_MIN = -1e10
 const SPINBOX_MAX = 1e10
@@ -54,6 +46,7 @@ func _setup_ui():
 
 	var title = RichTextLabel.new()
 	title.text = "Inspector"
+	title.fit_content = true
 	vbox.add_child(title)
 
 	var separator = HSeparator.new()
@@ -77,11 +70,40 @@ func inspect(target: Object):
 
 	var properties = target.get_property_list()
 	var property_names = []
+	
+	# Current group/category tracking for UI organization
+	var current_group_name = ""
+	var current_category_name = ""
 
 	for prop in properties:
+
+		
+		# These properties are not actual variables; they are organizational hints
+		if prop.usage & PROPERTY_USAGE_CATEGORY or prop.usage & PROPERTY_USAGE_GROUP or prop.usage & PROPERTY_USAGE_SUBGROUP:
+			print("Group: %s" % prop.name)
+			# Godot uses PROPERTY_USAGE_CATEGORY for groups, subgroups, and categories
+			
+			
+			if prop.usage & PROPERTY_USAGE_CATEGORY:
+				# Example: @export_category("Rendering")
+				var new_category = prop.name.replace(":", "").replace("/", "") # Clean up name
+				if new_category != current_category_name:
+					_create_category_header(new_category)
+					current_category_name = new_category
+					current_group_name = "" # Reset group when entering a new category
+				continue
+				
+			elif prop.usage & PROPERTY_USAGE_GROUP or prop.usage & PROPERTY_USAGE_SUBGROUP:
+				# Example: @export_group("Physics Properties")
+				# Example: @export_subgroup("Movement")
+				var new_group = prop.name.replace(":", "").replace("/", "") # Clean up name
+				if new_group != current_group_name:
+					_create_group_header(new_group, prop.usage & PROPERTY_USAGE_SUBGROUP)
+					current_group_name = new_group
+				continue
 		if prop.usage & PROPERTY_USAGE_EDITOR == 0:
 			continue
-
+		
 		if not (prop.usage & PROPERTY_USAGE_SCRIPT_VARIABLE):
 			continue
 
@@ -94,6 +116,29 @@ func inspect(target: Object):
 		property_names.append(prop.name)
 		_create_property_control(prop)
 	print("Inspecting this property list: %s" % str(property_names))
+
+func _create_category_header(_name: String):
+	# Create a prominent header for Categories (e.g., bold, larger text, separator)
+	var label = RichTextLabel.new()
+	label.bbcode_enabled = true
+	label.text = "[b][font_size=18]%s[/font_size][/b]" % _name.capitalize()
+	label.custom_minimum_size.y = 30
+	label.fit_content = true
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_property_container.add_child(label)
+	_property_container.add_child(HSeparator.new())
+
+func _create_group_header(_name: String, is_subgroup: bool = false):
+	# Create a less prominent header for Groups/Subgroups (e.g., standard text)
+	var prefix = "  " if is_subgroup else ""
+	var label = RichTextLabel.new()
+	label.bbcode_enabled = true
+	label.text = "%s[b]%s[/b]" % [prefix, _name.capitalize()]
+	label.custom_minimum_size.y = 20
+	label.fit_content = true
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	print("Added header")
+	_property_container.add_child(label)
 
 func _clear_properties():
 	if not _property_container: return
@@ -109,6 +154,7 @@ func _create_property_control(prop: Dictionary):
 	var container = HBoxContainer.new()
 	container.size_flags_horizontal = Control.SIZE_FILL
 	_property_container.add_child(container)
+	container.tooltip_text = prop_name.capitalize()
 
 	var label = Label.new()
 	label.text = prop_name.capitalize()
@@ -477,6 +523,7 @@ func _add_draggable_to_spinbox(spin: SpinBox, prop_name: String, custom_drag_han
 	draggable.name = "DragOverlay"
 	draggable.base_drag_speed = spin.step * drag_speed_multiplier
 	spin.add_child(draggable)
+	draggable.custom_init()
 
 	if custom_drag_handler.is_valid():
 		draggable.drag_changed.connect(custom_drag_handler)
@@ -486,5 +533,6 @@ func _add_draggable_to_spinbox(spin: SpinBox, prop_name: String, custom_drag_han
 		)
 
 	draggable.click_detected.connect(func():
-		spin.grab_focus()
+		#draggable.grab_click_focus()
+		pass
 	)

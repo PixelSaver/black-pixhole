@@ -21,21 +21,30 @@ signal click_detected()
 var _pressed := false
 var _dragging := false
 var _accumulated_delta := 0.0
+var _par : Control
 
 # --- FIX 1: Set Z-Index and Mouse Filter in _ready ---
-func _ready():
-	# Z-Index is good for draw order, keep it high
-	z_index = 100 
-
-	(get_parent() as Control).mouse_filter = Control.MOUSE_FILTER_PASS
-	# We *must* use MOUSE_FILTER_STOP to capture the input 
+func custom_init():
+	_par = get_parent()
+	_par.mouse_filter = Control.MOUSE_FILTER_PASS
 	# before it reaches the SpinBox underneath.
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	mouse_filter = Control.MOUSE_FILTER_PASS
 	
 	# Setting anchors preset to full rect is fine
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_default_cursor_shape = Control.CURSOR_DRAG
+	
+	_par.mouse_entered.connect(_on_enter)
+	_par.mouse_exited.connect(_on_exit)
 
+func _on_enter():
+	grab_click_focus()
+	grab_focus()
+	print("Grab click focus")
+	pass
+func _on_exit():
+	release_focus()
+	pass
 
 func _gui_input(event):
 	# Mouse press / release
@@ -47,7 +56,7 @@ func _gui_input(event):
 				_accumulated_delta = 0.0
 				# FIX 2: Accept the event immediately on press
 				# This prevents the event from propagating to the SpinBox
-				accept_event()
+				#accept_event()
 			else:
 				if not _dragging and allow_click_through:
 					# It was a click, not a drag
@@ -55,7 +64,7 @@ func _gui_input(event):
 				_pressed = false
 				_dragging = false
 				# FIX 3: Accept the event on release too, ensuring it stops here
-				accept_event()
+				#accept_event()
 
 
 	# Mouse motion -> handle dragging after threshold
@@ -65,13 +74,12 @@ func _gui_input(event):
 		# FIX 4: Only process motion if within the drag threshold or already dragging
 		if not _dragging:
 			_accumulated_delta += abs(dx)
-			if _accumulated_delta >= drag_threshold:
-				_dragging = true
-				# Once we start dragging, we should accept the event
-				accept_event()
-				return # Skip calculation on the threshold frame
+			_dragging = true
+			# Once we start dragging, we should accept the event
+			accept_event()
+			return # Skip calculation on the threshold frame
 		
-		if _dragging:
+		if _dragging or true:
 			# Calculate speed with modifiers
 			var speed := base_drag_speed
 			if Input.is_key_pressed(Key.KEY_SHIFT):
