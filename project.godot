@@ -13,6 +13,7 @@ config_version=5
 config/name="Black Pixhole"
 run/main_scene="uid://bpvj6ymiikf16"
 config/features=PackedStringArray("4.5", "Forward Plus")
+boot_splash/show_image=false
 config/icon="res://icon.svg"
 
 [autoload]
@@ -41,4 +42,5 @@ pause={
 
 [rendering]
 
+textures/vram_compression/import_etc2_astc=true
 driver/driver_name="vulkan"
