@@ -17,13 +17,25 @@ var skybox_rd_tex: RID # Permanent Skybox Texture RID
 
 # --- Export Variables (Updated) ---
 # Rendering
+const ASPECT = 16.0 / 9.0
 @export_group("Rendering")
-@export var resolution := Vector2i(1280, 720)
+@export var resolution := Vector2i(1280, 720) :
+	set(new_res):
+		if not _setup_ready: resolution = new_res
+		if resolution.y == new_res.y:
+			resolution.x = new_res.x
+			resolution.y = int(round(resolution.x / ASPECT))
+		elif resolution.x == new_res.x:
+			resolution.y = new_res.y
+			resolution.x = int(round(resolution.y / ASPECT))
+		res_changed = true
 @export_range(10, 10000) var max_steps := 500
 @export_range(0.0001, 10.0) var step_size := 0.1
 @export_range(50.0, 50000.0) var escape_radius := 100.0
 @export var skybox_texture: Texture2D = preload("res://scriptsnscenes/black_hole_combined/skybox_75.png")
 @export_range(0.01, 5.0) var skybox_brightness := 1.5
+var res_changed := false
+@onready var _resolution := resolution
 
 # Black Hole
 @export_group("Black Hole")
@@ -70,6 +82,7 @@ var skybox_rd_tex: RID # Permanent Skybox Texture RID
 var last_time = 0.
 var frame_start_time = 0.
 var update_noise_texture := false
+var _setup_ready := false
 
 # ----------------------------------------------------
 # --- LIFECYCLE FUNCTIONS ---
@@ -82,14 +95,23 @@ func _ready():
 		return
 
 	_setup_shader()
-	_setup_textures()
+	_setup_output_texture()
 	sampler = _create_sampler() # Create permanent Sampler RID
 	_setup_uniforms() # Create permanent Uniform Set, Buffers, and Textures
 
 	last_time = Time.get_unix_time_from_system()
 	_update_shader() # First dispatch
 	update_noise_texture = true
+	_setup_ready = true
 
+func _process(_delta):
+	if res_changed:
+		res_changed = false
+		# Defer by one frame
+		call_deferred("_apply_resolution_change")
+func _apply_resolution_change():
+	_resolution = resolution  # update internal resolution
+	_resize_output()          # rebuild texture + uniform_set
 # ----------------------------------------------------
 # --- SETUP FUNCTIONS (Called Once) ---
 # ----------------------------------------------------
@@ -100,7 +122,7 @@ func _setup_shader():
 	shader = rd.shader_create_from_spirv(shader_spirv)
 	pipeline = rd.compute_pipeline_create(shader)
 
-func _setup_textures():
+func _setup_output_texture():
 	# Output texture (Remains the same - created once)
 	var fmt := RDTextureFormat.new()
 	fmt.width = resolution.x
@@ -110,7 +132,7 @@ func _setup_textures():
 					 RenderingDevice.TEXTURE_USAGE_CAN_UPDATE_BIT | \
 					 RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT | \
 					 RenderingDevice.TEXTURE_USAGE_CAN_COPY_FROM_BIT
-
+	print(RenderingDevice.LIMIT_MAX_TEXTURE_SIZE_2D)
 	output_tex = rd.texture_create(fmt, RDTextureView.new())
 
 func _create_sampler() -> RID:
@@ -241,8 +263,8 @@ func _get_params_data() -> PackedByteArray:
 	params.append(Time.get_ticks_msec() / 1000.0)
 
 	# Block 5: Rendering Params
-	params.append(float(resolution.x))
-	params.append(float(resolution.y))
+	params.append(float(_resolution.x))
+	params.append(float(_resolution.y))
 	params.append(float(max_steps))
 	params.append(step_size)
 
@@ -316,6 +338,48 @@ func _get_params_data() -> PackedByteArray:
 # --- PER-FRAME UPDATE (OPTIMIZED) ---
 # ----------------------------------------------------
 
+func _resize_output():
+	# 1. Create new texture
+	_setup_output_texture()
+
+	# 2. Rebuild the first uniform: output image
+	var u_output := RDUniform.new()
+	u_output.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE
+	u_output.binding = 0
+	u_output.add_id(output_tex)
+
+	# 3. Recreate uniform set (bindings 1–3 reused)
+	var uniforms = []
+
+	uniforms.append(u_output)
+
+	# Reuse skybox, noise, and params_buffer bindings
+	var u_skybox := RDUniform.new()
+	u_skybox.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+	u_skybox.binding = 1
+	u_skybox.add_id(sampler)
+	u_skybox.add_id(skybox_rd_tex)
+	uniforms.append(u_skybox)
+
+	var u_noise := RDUniform.new()
+	u_noise.uniform_type = RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE
+	u_noise.binding = 2
+	u_noise.add_id(sampler)
+	u_noise.add_id(noise_tex)
+	uniforms.append(u_noise)
+
+	var u_params := RDUniform.new()
+	u_params.uniform_type = RenderingDevice.UNIFORM_TYPE_UNIFORM_BUFFER
+	u_params.binding = 3
+	u_params.add_id(params_buffer)
+	uniforms.append(u_params)
+
+	# 4. Replace old uniform set
+	if uniform_set.is_valid():
+		rd.free_rid(uniform_set)
+
+	uniform_set = rd.uniform_set_create(uniforms, shader, 0)
+
 func _update_shader():
 	if not rd or not pipeline or not uniform_set.is_valid():
 		return
@@ -335,6 +399,15 @@ func _update_shader():
 		if noise_tex.is_valid():
 			rd.texture_update(noise_tex, 0, new_noise_image.get_data())
 		update_noise_texture = false
+	
+	#if res_changed:
+		#_resize_output()
+		#var curr = Time.get_unix_time_from_system()
+		#var delta = curr-last_time
+		#var frame_time = curr-frame_start_time
+		#call_deferred("_emit_signal", delta, frame_time)
+		#_resolution = resolution
+		#return
 
 	# 3. DISPATCH
 	var compute_list := rd.compute_list_begin()
@@ -343,8 +416,8 @@ func _update_shader():
 	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
 
 	# Calculate group count
-	var group_x = ceili(resolution.x / 8.0)
-	var group_y = ceili(resolution.y / 8.0)
+	var group_x = ceili(_resolution.x / 8.0)
+	var group_y = ceili(_resolution.y / 8.0)
 	rd.compute_list_dispatch(compute_list, group_x, group_y, 1)
 	rd.compute_list_end()
 
@@ -372,7 +445,7 @@ func _display_result():
 	if byte_data.size() == 0:
 		return
 
-	var img := Image.create_from_data(resolution.x, resolution.y, false, Image.FORMAT_RGBAH, byte_data)
+	var img := Image.create_from_data(_resolution.x, _resolution.y, false, Image.FORMAT_RGBAH, byte_data)
 	
 	var px = img.get_pixel(0, 0)
 	#print("First pixel RGBA: ", px)

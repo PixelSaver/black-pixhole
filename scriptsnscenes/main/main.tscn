@@ -15,6 +15,19 @@ bh_node = NodePath("BHCompute/ColorRect/ShaderSetup")
 [node name="ColorRect" parent="BHCompute" index="0" node_paths=PackedStringArray("fps_label")]
 fps_label = NodePath("../../UI/FPSLabel")
 
+[node name="ShaderSetup" parent="BHCompute/ColorRect" index="0"]
+black_hole_position = null
+schwarzschild_radius = null
+camera_fov = null
+use_scene_camera = null
+camera_target = null
+enable_disc = null
+disc_inner_radius = null
+disc_inner_color = null
+disc_outer_color = null
+show_grid = null
+show_galaxy = null
+
 [node name="Label" parent="BHCompute/ColorRect" index="1"]
 visible = false
 
@@ -42,7 +55,7 @@ mouse_filter = 2
 bbcode_enabled = true
 fit_content = true
 
-[node name="RuntimeInspector" parent="UI" node_paths=PackedStringArray("target_inspect") instance=ExtResource("5_uu8of")]
+[node name="RuntimeInspector" parent="UI" instance=ExtResource("5_uu8of")]
 layout_mode = 1
 anchor_left = 0.7
 grow_horizontal = 1
@@ -55,7 +68,6 @@ vector_axis_label_width = 0
 vector_axis_spin_min_x = 0
 color_picker_width = 0
 color_picker_height = 0
-target_inspect = NodePath(".")
 
 [node name="ControlsToggle" type="Button" parent="UI"]
 layout_mode = 1
