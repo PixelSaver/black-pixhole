@@ -57,7 +57,8 @@ A black hole simulation to rival Interstellar!!! No, its a realtime black hole r
 * Left click to drag camera around black hole
 * Scroll to zoom around the black hole
 * Edit the parameters of the shader by yourself! Click and drag or edit the values directly
-* Shift to pause the game
+* Space to pause the game
+* C to hide controls and take screenshots!!
 
 
 ### What do I take out of this?
@@ -107,7 +108,7 @@ Might be big, so click to reveal!
 
 ### Play
 
-If you still insist on building this unoptimized mess, go ahead. Oh, but the release (web) version is [here](https://pixelsaver.github.io/black-pixhole/). For the newer, compute version, check the releases tab
+If you still insist on building this unoptimized mess, go ahead. Oh, but the release (web) version is [here](https://pixelsaver.github.io/black-pixhole/). For the newer, compute version, check the [releases tab](https://github.com/PixelSaver/black-pixhole/releases)
 
 1. Install Godot 4.5
 2. Download and unzip the code
@@ -139,6 +140,8 @@ If you still insist on building this unoptimized mess, go ahead. Oh, but the rel
   - [X] Edit the simulation yourself using the access to the simulator
   - [ ] Turn the editor runtime_inspector class into a gdextension maybe?
 - [ ] Post processing (bloom etc)
+- [ ] Add physics movement of planets
+- [ ] Two black holes 0.0
 ### Notes
 Since this is running on a compute shader, it doesn't work on web. I'm pissed too, but maybe one day I'll turn it into a spatial shader or something.
 
