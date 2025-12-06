@@ -18,6 +18,8 @@ var rotation_speed := 0.01
 var fov := 60.0
 var needs_update := false
 var frames_to_wait : int = 0
+var first_person_pitch := 0.
+var first_person_yaw := 0.
 
 func _ready() -> void:
 	shader_setup.shader_process_frame.connect(_on_shader_process)
@@ -34,12 +36,31 @@ func _on_runtime_prop_changed(prop_name:String, new_val):
 		"camera_position":
 			camera_pos = new_val
 			_set_camera_pos_reverse()
+			_set_first_person_angles_reverse()
 		"camera_target":
 			target = new_val
 			_set_camera_pos_reverse()
+			_set_first_person_angles_reverse()
 		_:
 			return
+func _set_first_person_angles_reverse():
+	# 1. Get the relative vector from the camera position to the target (the look vector)
+	var look_vector: Vector3 = target - camera_pos
 
+	# 2. Get the Distance (r) - this should ideally be constant in first-person
+	var look_distance = look_vector.length() 
+
+	if look_distance < 0.001:
+		# Avoid issues if the camera and target are on top of each other
+		return
+
+	# 3. Calculate Pitch (Polar Angle)
+	# Pitch is derived from the Y component relative to the look distance.
+	first_person_pitch = asin(look_vector.y / look_distance)
+
+	# 4. Calculate Yaw (Azimuthal Angle)
+	# Yaw is derived from the X and Z components. atan2(X, Z) is standard for world space.
+	first_person_yaw = atan2(look_vector.x, look_vector.z)
 func _set_camera_pos_reverse():
 	# 1. Get the relative vector from the target to the camera
 	var relative_pos: Vector3 = camera_pos - target
@@ -89,21 +110,30 @@ func _gui_input(event: InputEvent) -> void:
 	# Check if the game is paused (assuming you have a way to check if controls should be active)
 	# if get_tree().paused: return 
 
-	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		yaw -= event.relative.x * rotation_speed 
-		pitch = clamp(pitch + event.relative.y * rotation_speed, -PI/2.0 + 0.1, PI/2.0 - 0.1)
-		_update_camera_state()
-		needs_update = true
+	if event is InputEventMouseMotion:
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			yaw -= event.relative.x * rotation_speed 
+			pitch = clamp(pitch + event.relative.y * rotation_speed, -PI/2.0 + 0.1, PI/2.0 - 0.1)
+			_update_camera_state()
+			needs_update = true
+			_update_camera_state()
+		elif Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+			first_person_yaw -= event.relative.x * rotation_speed 
+			first_person_pitch = clamp(first_person_pitch - event.relative.y * rotation_speed, -PI/2.0 + 0.1, PI/2.0 - 0.1)
+			
+			_update_first_person_target()  
+			needs_update = true
 		
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			target_distance = clamp(target_distance * 0.95, min_distance, max_distance)
 			needs_update = true
+			_update_camera_state()
 			
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			target_distance = clamp(target_distance * 1.1, min_distance, max_distance)
 			needs_update = true
-	_update_camera_state()
+			_update_camera_state()
 func _input(_event: InputEvent) -> void:
 	if Input.is_action_just_pressed("pause"):
 		if shader_setup._paused:
@@ -122,6 +152,19 @@ func _process(_delta: float) -> void:
 		return
 	shader_setup._update_shader()
 	
+
+func _update_first_person_target():
+	
+	# The calculation uses the same pitch/yaw angles
+	var x = distance * cos(first_person_pitch) * sin(first_person_yaw)
+	var y = distance * sin(first_person_pitch)
+	var z = distance * cos(first_person_pitch) * cos(first_person_yaw)
+	var v = Vector3(x, y, z)
+
+	# The camera position (eye) is the reference point
+	target = camera_pos + v
+	
+	Global.runtime_inspector.set_target_prop("camera_target", target)
 
 # Calculates the spherical coordinates into a cartesian position
 func _update_camera_state():
