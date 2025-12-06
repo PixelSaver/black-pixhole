@@ -3,6 +3,9 @@ extends PanelContainer
 ## Usage: Add this to your scene, then call inspect(your_node)
 class_name RuntimeInspector
 
+signal inspection_finished
+signal property_changed(property_name:String, new_value:Variant)
+
 @export var show_private_properties := false
 @export var compact_mode := false
 
@@ -187,7 +190,22 @@ func _update_control_value(control: Control, value):
 				
 				if x_spin.value != value.x: x_spin.value = value.x
 				if y_spin.value != value.y: y_spin.value = value.y
-			#TODO Get vector3 and 3i here
+			elif value is Vector3:
+				# Assuming index 0 is X and index 1 is Y's HBoxContainer
+				var x_hbox = control.get_child(0) as HBoxContainer
+				var y_hbox = control.get_child(1) as HBoxContainer
+				var z_hbox = control.get_child(2) as HBoxContainer
+				
+				# Assuming the SpinBox is the second child of the HBoxContainer
+				var x_spin = x_hbox.get_child(1) as SpinBox
+				var y_spin = y_hbox.get_child(1) as SpinBox
+				var z_spin = z_hbox.get_child(1) as SpinBox
+				
+				if x_spin.value != value.x: x_spin.value = value.x
+				if y_spin.value != value.y: y_spin.value = value.y
+				if z_spin.value != value.z: y_spin.value = value.z
+				
+			#TODO Add vector3i
 		_:
 			# For other controls (Labels for Objects/Generics)
 			pass
@@ -589,9 +607,49 @@ func _create_generic_control(value, prop_name: String) -> Label:
 	label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	return label
 
+## Sets a property value on the current target object.
+## @param prop_name The name of the property to set.
+## @param new_value The new value to assign to the property.
+func set_target_prop(prop_name: String, new_value) -> bool:
+	if _current_target:
+		# Check if the property exists before attempting to set
+		if _current_target.has_method("set") and _current_target.has_method("get"):
+			# Use the engine's built-in set function for safety and efficiency
+			if _current_target.get(prop_name) == new_value: return false
+			_current_target.set(prop_name, new_value)
+			refresh()
+			var control = _property_controls[prop_name]
+			print("GOING")
+			_update_control_value(control, new_value)
+			return true
+		else:
+			# Fallback or error log if the object doesn't support 'set' (unlikely for Object descendants)
+			push_warning("Current target does not support property setting.")
+	else:
+		push_warning("Cannot set property: No target object inspected.")
+	return false
+
+
+## Gets a property value from the current target object.
+## @param prop_name The name of the property to get.
+## @return The value of the property, or null if no target is inspected or property doesn't exist.
+func get_target_prop(prop_name: String):
+	if _current_target:
+		# Check if the property exists before attempting to get
+		if _current_target.has_method("get"):
+			# Use the engine's built-in get function
+			return _current_target.get(prop_name)
+		else:
+			push_warning("Current target does not support property getting.")
+			return null
+	else:
+		# This will be useful if other parts of the system want to read a property
+		return null
+
 func _on_property_changed(prop_name: String, new_value):
 	if _current_target:
 		_current_target.set(prop_name, new_value)
+		property_changed.emit(prop_name, new_value)
 
 func _add_draggable_to_spinbox(spin: SpinBox, prop_name: String, custom_drag_handler: Callable = Callable()) -> void:
 	var draggable = DraggableComponent.new()
