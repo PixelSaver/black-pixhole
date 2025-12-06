@@ -32,6 +32,7 @@ var _current_target: Object = null
 var _property_controls: Dictionary = {}
 var _scroll_container: ScrollContainer
 var _property_container: VBoxContainer
+var _currently_editing_prop: String = ""
 
 func _ready():
 	Global.runtime_inspector = self
@@ -130,6 +131,7 @@ func inspect(target: Object):
 		property_names.append(prop.name)
 		_create_property_control(prop)
 	print("Inspecting this property list: %s" % str(property_names))
+	inspection_finished.emit()
 
 func _process(_delta: float) -> void:
 	refresh()
@@ -137,9 +139,14 @@ func _process(_delta: float) -> void:
 func refresh():
 	if not _current_target:
 		return
+		
 	
 	# Iterate over all property controls currently in the UI
 	for prop_name in _property_controls:
+		# 🚨 GUARD CLAUSE: Skip controls currently being edited by the user
+		if prop_name == _currently_editing_prop: 
+			continue
+		
 		var control = _property_controls[prop_name]
 		var current_value = _current_target.get(prop_name)
 		
@@ -203,7 +210,7 @@ func _update_control_value(control: Control, value):
 				
 				if x_spin.value != value.x: x_spin.value = value.x
 				if y_spin.value != value.y: y_spin.value = value.y
-				if z_spin.value != value.z: y_spin.value = value.z
+				if z_spin.value != value.z: z_spin.value = value.z
 				
 			#TODO Add vector3i
 		_:
@@ -616,10 +623,10 @@ func set_target_prop(prop_name: String, new_value) -> bool:
 		if _current_target.has_method("set") and _current_target.has_method("get"):
 			# Use the engine's built-in set function for safety and efficiency
 			if _current_target.get(prop_name) == new_value: return false
-			_current_target.set(prop_name, new_value)
-			refresh()
+			#_current_target.set(prop_name, new_value)
+			#refresh()
 			var control = _property_controls[prop_name]
-			print("GOING")
+			print("GOING, updating this prop: %s" % prop_name)
 			_update_control_value(control, new_value)
 			return true
 		else:
@@ -648,6 +655,7 @@ func get_target_prop(prop_name: String):
 
 func _on_property_changed(prop_name: String, new_value):
 	if _current_target:
+		_currently_editing_prop = prop_name
 		_current_target.set(prop_name, new_value)
 		property_changed.emit(prop_name, new_value)
 

@@ -74,6 +74,7 @@ anchor_left = 0.7
 grow_horizontal = 1
 grow_vertical = 1
 mouse_filter = 2
+show_private_properties = null
 value_column_max_width = 0
 property_label_min_x = 130
 spinbox_min_x = 0
@@ -81,6 +82,7 @@ vector_axis_label_width = 0
 vector_axis_spin_min_x = 0
 color_picker_width = 0
 color_picker_height = 0
+drag_speed_multiplier = null
 
 [node name="ControlsToggle" type="Button" parent="UI"]
 layout_mode = 1

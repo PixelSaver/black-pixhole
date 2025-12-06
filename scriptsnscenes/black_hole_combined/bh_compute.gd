@@ -8,10 +8,10 @@ extends TextureRect
 @export var pause_panel: Panel
 const SMOOTHING_FACTOR = 0.01
 var avg_sfps := 0.0
-var camera_pos : Vector3 = Vector3(0,8,10)
+var camera_pos : Vector3 
 var target := Vector3.ZERO
-var distance := 60
-var target_distance := 60
+var distance := 60.
+var target_distance := 60.
 var yaw := PI/2
 var pitch := 0.0
 var rotation_speed := 0.01
@@ -21,6 +21,42 @@ var frames_to_wait : int = 0
 
 func _ready() -> void:
 	shader_setup.shader_process_frame.connect(_on_shader_process)
+	while not Global.runtime_inspector:
+		await get_tree().process_frame
+	await Global.runtime_inspector.inspection_finished
+	camera_pos = Global.runtime_inspector.get_target_prop("camera_position")
+	target = Global.runtime_inspector.get_target_prop("camera_target")
+	Global.runtime_inspector.property_changed.connect(_on_runtime_prop_changed)
+	_set_camera_pos_reverse()
+
+func _on_runtime_prop_changed(prop_name:String, new_val):
+	match prop_name:
+		"camera_position":
+			camera_pos = new_val
+			_set_camera_pos_reverse()
+		"camera_target":
+			target = new_val
+			_set_camera_pos_reverse()
+		_:
+			return
+
+func _set_camera_pos_reverse():
+	# 1. Get the relative vector from the target to the camera
+	var relative_pos: Vector3 = camera_pos - target
+
+	# 2. Calculate Distance (r)
+	distance = relative_pos.length()
+	target_distance = distance 
+
+	if distance < 0.001:
+		# Avoid division by zero/near-zero, maintain current pitch/yaw
+		return
+
+	# 3. Calculate Pitch (Polar Angle)
+	pitch = asin(relative_pos.y / distance)
+
+	# 4. Calculate Yaw (Azimuthal Angle)
+	yaw = atan2(relative_pos.x, relative_pos.z)
 
 func _on_shader_process(_delta:float, frame_time:float, frame_delay:float):
 	var fps = Performance.get_monitor(Performance.TIME_FPS)
@@ -98,10 +134,6 @@ func _update_camera_state():
 
 	# Position is offset from target
 	camera_pos = target + v # Note: Your original logic was target - v, but v is the offset
-	shader_setup.camera_position = camera_pos
+	Global.runtime_inspector.set_target_prop("camera_position", camera_pos)
+	#shader_setup.camera_position = camera_pos
 	#print("camera pos: %s" % camera_pos)
-
-# This is called by _setup_uniforms() to get the current camera data
-#func get_camera_params() -> Array:
-	## Returns [position, target, fov] to be packed into the uniform buffer
-	#return [camera_position_world, target, fov]

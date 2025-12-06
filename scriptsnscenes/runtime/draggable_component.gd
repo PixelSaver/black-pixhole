@@ -40,7 +40,6 @@ func custom_init():
 func _on_enter():
 	grab_click_focus()
 	grab_focus()
-	print("Grab click focus")
 	pass
 func _on_exit():
 	release_focus()
