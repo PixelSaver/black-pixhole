@@ -70,6 +70,10 @@ From my second round of development on this project... I have a love hate relati
 
 ### Screenshots
 Might be big, so click to reveal!
+
+https://github.com/user-attachments/assets/d83324ab-b0da-42ed-bd7a-6b702747f7df
+
+
 <details>
   <summary><strong>Screenshot of the compute shader</strong></summary>
   <img src="media/img2.png" alt="Screenshot of the added simulation controls">
