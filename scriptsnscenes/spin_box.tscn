@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://doqvv2k5tss18"]
+
+[ext_resource type="PackedScene" uid="uid://6hw7jdwyq6qw" path="res://scriptsnscenes/runtime/draggable_component.tscn" id="1_0ylda"]
+
+[node name="SpinBox" type="SpinBox"]
+offset_right = 86.5625
+offset_bottom = 31.0
+
+[node name="DraggableComponent" parent="." instance=ExtResource("1_0ylda")]
+layout_mode = 1
