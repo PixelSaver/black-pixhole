@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://bajm6dqruukuw"]
+[gd_scene format=3 uid="uid://bajm6dqruukuw"]
 
 [ext_resource type="Script" uid="uid://0i4lx2raarcw" path="res://scriptsnscenes/black_hole_combined/bh_compute.gd" id="1_stwnt"]
 [ext_resource type="Script" uid="uid://bbbea7qb6p6kx" path="res://scriptsnscenes/black_hole_combined/shader_setup.gd" id="2_c2cox"]
@@ -14,7 +14,7 @@ generate_mipmaps = false
 noise = SubResource("FastNoiseLite_83yca")
 seamless = true
 
-[node name="BHCompute" type="Control"]
+[node name="BHCompute" type="Control" unique_id=234586732]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -22,7 +22,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="ColorRect" type="TextureRect" parent="." node_paths=PackedStringArray("fps_label")]
+[node name="ColorRect" type="TextureRect" parent="." unique_id=95549691 node_paths=PackedStringArray("fps_label")]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -33,7 +33,7 @@ script = ExtResource("1_stwnt")
 zoom_speed = 1.0999999999999968
 fps_label = NodePath("Label")
 
-[node name="ShaderSetup" type="Node" parent="ColorRect"]
+[node name="ShaderSetup" type="Node" parent="ColorRect" unique_id=1457683543]
 script = ExtResource("2_c2cox")
 resolution = Vector2i(320, 180)
 max_steps = 1395
@@ -58,7 +58,7 @@ galaxy_rotation = Vector3(0, 0.03355, 1.03145)
 galaxy_intensity_scale = 2.2727299999999935
 galaxy_pos = Vector3(70, 0.0842, 30)
 
-[node name="Label" type="RichTextLabel" parent="ColorRect"]
+[node name="Label" type="RichTextLabel" parent="ColorRect" unique_id=1447268909]
 layout_mode = 0
 offset_right = 1050.0
 offset_bottom = 106.0

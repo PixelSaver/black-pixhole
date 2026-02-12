@@ -25,3 +25,5 @@ generated_shader_controls.txt
 tool_scripts/shader_param_reader.gd
 tool_scripts/shader_param_reader.gd.uid
 *.tmp
+media/compute_showcase.mp4
+media/compute_showcase_compressed.mp4

@@ -1,4 +1,4 @@
-[gd_resource type="ShaderMaterial" load_steps=4 format=3 uid="uid://p4t64le73iy3"]
+[gd_resource type="ShaderMaterial" format=3 uid="uid://p4t64le73iy3"]
 
 [ext_resource type="Shader" uid="uid://chxflauolk0t3" path="res://scriptsnscenes/black hole/black_hole.gdshader" id="1_j4boo"]
 
