@@ -1,0 +1,23 @@
+[gd_scene load_steps=2 format=3 uid="uid://yy6sr7d78gcr"]
+
+[ext_resource type="Script" uid="uid://dr82efhlwrcju" path="res://scriptsnscenes/runtime/draggable_component.gd" id="1_fi0gi"]
+
+[node name="Spinbox" type="SpinBox"]
+anchors_preset = -1
+anchor_left = 0.2
+anchor_top = 0.2
+anchor_right = 0.8
+anchor_bottom = 0.8
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="DraggableComponent" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+script = ExtResource("1_fi0gi")
