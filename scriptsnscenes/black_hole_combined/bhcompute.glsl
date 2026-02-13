@@ -745,9 +745,9 @@ void main() {
 
     // Optional: straight ray grid check
     bool straightHitGrid = false;
-    float straightGridStrength = 0.0;
+    float straightgridstrength = 0.0;
     if (params.show_grid > 0.5) {
-        straightHitGrid = checkGridIntersectionStraightRay(params.camera_position, ray_dir, straightGridStrength);
+        straighthitgrid = checkgridintersectionstraightray(params.camera_position, ray_dir, straightgridstrength);
     }
 
     // --- RAY MARCH LOOP (geodesic integration) ---

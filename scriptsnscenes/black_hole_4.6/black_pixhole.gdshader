@@ -1,33 +1,38 @@
 shader_type canvas_item;
 
-// ---------- User uniforms ----------
+// User uniforms
 uniform vec3 black_hole_position = vec3(0.0, 0.0, 0.0);
 uniform float schwarzschild_radius = 1.;
 uniform vec3 black_hole_color : source_color = vec3(0.0, 0.0, 0.0);
 uniform vec3 background_color : source_color = vec3(0.05, 0.05, 0.08);
 
+// Rendering
 uniform int max_steps = 3000;
 uniform float step_size = 1.;
 uniform float escape_radius = 1e4;
 
+// Camera
 uniform vec3 camera_position = vec3(0.0, 0.0, 100);
 uniform vec3 camera_target = vec3(0.0, 0.0, 0.0);
 uniform float camera_fov = 60.1;
+uniform vec2 viewport_size = vec2(800.0, 600.0);
 
-// ---------- Accretion Disc Params --------
+// Accretion Disc 
+uniform bool show_disc = true;
 uniform float disc_inner_radius = 2.2;
 uniform float disc_outer_radius = 5.2;
 uniform vec3 disc_inner_color : source_color = vec3(1.0, 0.95, 0.0);
 uniform vec3 disc_outer_color : source_color = vec3(1.0, 0.3, 0.0);
 uniform float disc_thickness = 1.;
+uniform float disc_emission_strength = 1.0;
 
-// -------- Star params ---------
+// Star background params
 uniform vec3 star_color : source_color = vec3(1.);
 uniform float star_brightness = 1.;
 uniform float star_density = 0.005;
 uniform float star_size_scale = 0.012;
 
-// ---------- Grid Params --------
+// Grid Params
 uniform bool show_grid = true;
 uniform vec3 grid_color : source_color = vec3(0.5, 0.7, 1.0);
 uniform float grid_spacing = 10; // Spacing between grid lines (matches C++)
@@ -36,14 +41,15 @@ uniform float grid_alpha = 1;
 uniform float grid_range = 60.; // How far grid extends
 uniform float grid_warp_offset = 50.; // Offset from C++ code
 
-// ---------- Spherical star (option A: finite sphere) ----------
+// Spherical star (option A: finite sphere)
+uniform bool enable_bigstar = false;
 uniform vec3 bigstar_center = vec3(0.0, 50.0, -200.0); // world position of star
 uniform float bigstar_radius = 20.0;                 // physical radius (world units)
 uniform vec3 bigstar_emission : source_color = vec3(1.0, 0.9, 0.7);
 uniform float bigstar_surface_brightness = 6.0;      // brightness at surface (tweak)
 uniform float bigstar_halo = 0.6;                    // additive halo factor
 
-uniform vec2 viewport_size = vec2(800.0, 600.0);
+uniform float time = 1.0;
 
 const float EPS = 1e-7;
 const float G_CONST = 6.67430e-11;
@@ -171,6 +177,46 @@ void rk4Step(inout Ray ray, float dL) {
     ray.y = ray.r * st * sp;
     ray.z = ray.r * ct;
 }
+void rk2Step(inout Ray ray, float dL) {
+    Ray r_temp;
+    vec3 k1a, k1b, k2a, k2b;
+
+    // K1: Evaluate RHS at the current position (ray)
+    geodesicRHS(ray, k1a, k1b);
+
+    // Midpoint: Estimate state at t + dL/2 using K1
+    r_temp = ray;
+    r_temp.r += 0.5 * dL * k1a.x;
+    r_temp.theta += 0.5 * dL * k1a.y;
+    r_temp.phi += 0.5 * dL * k1a.z;
+    r_temp.dr += 0.5 * dL * k1b.x;
+    r_temp.dtheta += 0.5 * dL * k1b.y;
+    r_temp.dphi += 0.5 * dL * k1b.z;
+
+    // K2: Evaluate RHS at the midpoint (r_temp)
+    geodesicRHS(r_temp, k2a, k2b);
+
+    // Final Step: Use K2 to step from the original position
+    ray.r += dL * k2a.x;
+    ray.theta += dL * k2a.y;
+    ray.phi += dL * k2a.z;
+    ray.dr += dL * k2b.x;
+    ray.dtheta += dL * k2b.y;
+    ray.dphi += dL * k2b.z;
+
+    // Update Spherical <-> Cartesian
+    ray.theta = clamp(ray.theta, 0.0, PI);
+    ray.r = max(ray.r, EPS);
+
+    float st = sin(ray.theta);
+    float ct = cos(ray.theta);
+    float sp = sin(ray.phi);
+    float cp = cos(ray.phi);
+
+    ray.x = ray.r * st * cp;
+    ray.y = ray.r * st * sp;
+    ray.z = ray.r * ct;
+}
 
 float getAdaptiveStepSize(float r) {
     float normalized_r = r / schwarzschild_radius;
@@ -213,6 +259,61 @@ vec3 getDiskColor(vec3 intersectionPoint) {
 
     return mix(disc_inner_color, disc_outer_color, r_norm);
 }
+float accretion_density(float l, float phi, float y, float R, float R0) {
+    float phi_norm = (phi / (2.0 * PI)) + 0.5;
+
+    float noise_base_v = log(max(l, 1.0)) * 1.5;
+
+    float angle_time_coord = phi_norm + time * 0.1;
+    //float radial_offset = texture(noise_sampler, vec2(angle_time_coord, 0.5)).r * 0.2;
+//
+    //float noise_v_coord = noise_base_v + radial_offset;
+//
+    //float n = texture(noise_sampler, vec2(angle_time_coord, noise_v_coord * 0.25)).r;
+	float n = 1.0;
+
+    float fade = (R - R0) * 0.5;
+    float d0 = pow(max(1.0 - l / R, 0.0) * clamp((l - R0) / fade + 1.0, 0.0, 1.0), 1.5);
+
+    return d0 * exp(-y * y * (400.0 / (disc_thickness * disc_thickness))) * 10.0 * (n + max(0.0, n - 0.65) * 1.5) * 1.3;
+}
+vec3 renderDiscVolume(Ray r_start, Ray r_end, float ray_t) {
+    if (!show_disc) return vec3(0.0);
+
+    vec3 color_accum = vec3(0.0);
+    float alpha_accum = 0.0;
+
+    const int steps = 10;
+    float dl_sub = ray_t / float(steps);
+
+    for (int j = 0; j < steps; ++j) {
+        float frac = (float(j) + 0.5) / float(steps);
+        vec3 p = mix(vec3(r_start.x, r_start.y, r_start.z), vec3(r_end.x, r_end.y, r_end.z), frac);
+
+        float r = length(p.xz);
+
+        if (r < disc_inner_radius || r > disc_outer_radius) continue;
+        if (abs(p.y) > disc_thickness) continue;
+
+        // NOTE: atan(p.y, p.x) is incorrect here for the phi angle in the disc plane,
+        // it should be atan(p.z, p.x) if disc is in the XZ plane,
+        // or p.xz coordinates if the disc is in the XZ plane
+        float density = accretion_density(r, atan(p.x, p.z), p.y, disc_outer_radius, disc_inner_radius);
+
+        // Simplified absorption model (Beer-Lambert law)
+        float opacity = 1.0 - exp(-density * dl_sub * disc_emission_strength);
+
+        float r_norm = (r - disc_inner_radius) / max(disc_outer_radius - disc_inner_radius, EPS);
+        vec3 disc_color = mix(disc_inner_color.rgb, disc_outer_color.rgb, clamp(r_norm, 0.0, 1.0));
+
+        color_accum += disc_color * opacity * (1.0 - alpha_accum);
+        alpha_accum += opacity * (1.0 - alpha_accum);
+
+        if (alpha_accum > 0.99) break;
+    }
+    return color_accum;
+}
+
 // Simple hash function to generate pseudo-random values
 float hash21(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -263,20 +364,15 @@ vec3 getStableStarDir(vec3 rayDir) {
 float calculateWarpedGridY(float worldX, float worldZ) {
     float y = 0.0;
 
-    // For each massive object (in our case, just the black hole at origin)
-    // Compute distance in XZ plane from the object
     float dx = worldX - black_hole_position.x;
     float dz = worldZ - black_hole_position.z;
     float dist = sqrt(dx * dx + dz * dz);
-
-    // Apply Schwarzschild warping exactly as in C++
+    
     if (dist > schwarzschild_radius) {
-        float deltaY = 2.0 * sqrt(schwarzschild_radius * (dist - schwarzschild_radius));
-        y += deltaY - grid_warp_offset;
-    } else {
-        // Deep pit at/inside event horizon
-        y += 2.0 * sqrt(schwarzschild_radius * schwarzschild_radius) - grid_warp_offset;
+        return 2.0 * sqrt(schwarzschild_radius * 
+               (dist - schwarzschild_radius)) - grid_warp_offset;
     }
+    return 2.0 * schwarzschild_radius - grid_warp_offset;
 
     return y;
 }
@@ -286,6 +382,35 @@ float getGridEdgeFade(vec2 xz) {
     float dist = length(xz);
     // 0.8–1.0 range controls where the fade starts and ends
     return 1.0 - smoothstep(grid_range * .9, grid_range, dist);
+}
+
+vec2 calculateGridGradient(float x, float z) {
+    float r_s = schwarzschild_radius;
+    vec2 pos_bh_xz = black_hole_position.xz;
+    float r = length(vec2(x, z) - pos_bh_xz); // Radial distance 'r'
+
+    float R_MIN = r_s * 0.1; // Match the R_MIN from WarpedY
+
+    // --- Termination Region: r < R_MIN ---
+    if (r < R_MIN) {
+        // The surface is an extremely deep, flat plane here. Gradient is 0.
+        return vec2(0.0);
+    }
+
+    // --- Inner & Outer Regions: r >= R_MIN ---
+    float h = 0.001; // Tiny step size for approximation
+    float y_r_plus_h = calculateWarpedGridY(x + h, z);
+    float y_r = calculateWarpedGridY(x, z);
+
+    // Simple Forward Difference
+    float df_dx_approx = (y_r_plus_h - y_r) / h;
+
+    // Repeat for Z
+    float y_z_plus_h = calculateWarpedGridY(x, z + h);
+    float df_dz_approx = (y_z_plus_h - y_r) / h;
+
+    // This numerically calculates the gradient of the surface Y(x, z).
+    return vec2(df_dx_approx, df_dz_approx);
 }
 // Check if point is near a grid line (in XZ plane)
 // This matches how the C++ code generates grid lines in a regular pattern
@@ -301,10 +426,8 @@ bool isOnGridLine(float worldX, float worldZ, out float lineStrength) {
 
     // Sharp falloff with minimal smoothing for crisp lines
     if (minDist < grid_line_thickness) {
-        // Very narrow smoothing range for crisp edges
-        // lineStrength = 1.0 - smoothstep(grid_line_thickness * 0.99, grid_line_thickness, minDist);
-
-        lineStrength = step(minDist, grid_line_thickness * 0.99);
+        lineStrength = smoothstep(grid_line_thickness, 
+                            grid_line_thickness * 0.5, minDist);
         return true;
     }
 
@@ -363,54 +486,54 @@ bool checkGridIntersection(vec3 oldPos, vec3 newPos, out float gridStrength) {
 }
 // Finds the first exact intersection along the straight ray (origin + t * dir)
 // Returns true if found. Outputs gridStrength (0..1) and hitPos (world-space point).
-bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStrength, out vec3 hitPos) {
-    gridStrength = 0.0;
-    hitPos = vec3(0.0);
-
+bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStrength) {
     if (!show_grid) return false;
+    
+    const int MAX_STEPS = 2048;
+    const float HIT_EPSILON = 0.001;
+    
 
+    float t = 0.0;
     float tNear = 0.0;
-    float tFar = length(camera_position) + grid_range;
-    const int samples = 128;
+    float tFar = length(camera_position) + grid_range * escape_radius;
+    const float SINGULARITY_RADIUS = 0.001;
 
-    float prevY = origin.y - calculateWarpedGridY(origin.x, origin.z);
-    float prevT = tNear;
-
-    for (int i = 1; i <= samples; ++i) {
-        float tf = float(i) / float(samples);
-        float t = mix(tNear, tFar, tf);
+    for (int i = 1; i <= MAX_STEPS; ++i) {
+        // float tf = float(i) / float(samples);
+        // float t = mix(tNear, tFar, tf);
         vec3 p = origin + dir * t;
-
-        // Skip points outside radial bounds
+        
+        if (t > tFar) return false;
+        
         float distXZ = length(p.xz);
-        if (distXZ > grid_range || distXZ < schwarzschild_radius * 1.001) continue;
+        
+        if (distXZ > grid_range*1.05 && distXZ < schwarzschild_radius * 1.001 && dot(p.xz, dir.xz) > 0.0) continue;
 
         float yNow = p.y - calculateWarpedGridY(p.x, p.z);
+        float dist = p.y - yNow;
 
         // Detect a sign change (surface crossing)
-        if (prevY * yNow <= 0.0) {
-            // approximate intersection between prev and current
-            float frac = abs(prevY) / (abs(prevY) + abs(yNow) + 1e-6);
-            vec3 hit = mix(p, origin + dir * prevT, frac);
-
-            // Check if this intersection is *on a line*
-            float lineStr;
-            if (isOnGridLine(hit.x, hit.z, lineStr)) {
-                // Fade near edges of grid_range
-                float fade = getGridEdgeFade(hit.xz);
+        if (abs(dist) < HIT_EPSILON) {
+          // if grid line is close to center, ignore
+          if (distXZ < schwarzschild_radius * .1) {
+            t += HIT_EPSILON * 2.0;
+            continue;
+            // Skip logic and continue loop
+          }
+          float lineStr;
+            if (isOnGridLine(p.x, p.z, lineStr)) {
+                // Fade near edge
+                float fade = 1.0 - smoothstep(grid_range * 0.9, grid_range, distXZ);;
                 gridStrength = grid_alpha * lineStr * fade;
-                hitPos = hit;
                 return true;
-            } else {
-                // Not on a visible line → skip and keep searching
-                prevY = yNow;
-                prevT = t;
-                continue;
             }
         }
-
-        prevY = yNow;
-        prevT = t;
+        
+        vec2 gradXZ = calculateGridGradient(p.x, p.z);
+        float gradientMagnitude = length(gradXZ);
+        
+        float invGradient = 1.0 / sqrt(1.0 + gradientMagnitude * gradientMagnitude + 1e-6);
+        t += invGradient * abs(dist);
     }
 
     return false;
@@ -465,117 +588,93 @@ void fragment() {
     // Ray direction
     vec3 ray_dir = normalize(uv.x * right - uv.y * up + forward);
     Ray ray = initRay(camera_position, ray_dir);
+    
+    float transmission = 1.0;
+    bool hitSomething = false;
+    
+    vec3 prev_world_pos = vec3(ray.x, ray.y, ray.z);
+    
+    float curr_step = step_size;
 
-    vec3 color_out = background_color;
-    vec3 prevPos = vec3(ray.x, ray.y, ray.z);
-
-    bool hitBlackHole = false;
-    bool hitDisk = false;
-    bool hitGrid = false;
-    bool hitStar = false;
-    float maxGridStrength = 0.0;
-    bool escaped = false;
-
-    // Straight (unbent) ray grid test
-    float straightGridStrength = 0.0;
+    // Accumulations
+    vec3 total_disc_color = vec3(0.0);
+    // vec3 total_nebula_color = vec3(0.0);
+    float et = time * 0.05;
+    
+    bool hitPixHole = false;
+    
     bool straightHitGrid = false;
-    vec3 straightHitPos = vec3(0.0);
-
+    float straightGridStrength = 0.0;
     if (show_grid) {
-        straightHitGrid = checkGridIntersectionStraightRay(camera_position, ray_dir, straightGridStrength, straightHitPos);
+        straightHitGrid = checkGridIntersectionStraightRay(camera_position, ray_dir, straightGridStrength);
     }
 
     // Main integration loop
     for (int i = 0; i < max_steps; i++) {
-        // Check if ray hit event horizon
-        if (ray.r <= schwarzschild_radius * 1.01) { hitBlackHole = true; break; }
-
+      // Hit event horizon
+      if (ray.r <= schwarzschild_radius * 1.01) { 
+        hitPixHole = true;
+        break; 
+      }
         float adaptive_step = getAdaptiveStepSize(ray.r);
-        rk4Step(ray, adaptive_step);
-
-        vec3 newPos = vec3(ray.x, ray.y, ray.z);
-
-        // --- check finite star sphere intersection ---
-        float t_hit;
-        vec3 hitPos;
-        if (intersectSegmentSphere(prevPos, newPos, bigstar_center, bigstar_radius, t_hit, hitPos)) {
-            // normal at surface
-            vec3 N = normalize(hitPos - bigstar_center);
-            // view direction from hit point back to camera
-            vec3 V = normalize(camera_position - hitPos);
-            // simple limb darkening / spec: bright at center, darker at limb
-            float cosTheta = clamp(dot(N, V), 0.0, 1.0);
-            float surface = pow(cosTheta, 0.5); // tweak exponent for limb profile
-
-            // surface emission (additive):
-            vec3 surfColor = bigstar_emission * bigstar_surface_brightness * surface;
-
-            // halo: soft additive glow depending on angle between ray and center
-            // compute angular distance between viewing direction and star center as seen from camera
-            vec3 dirToStarFromCamera = normalize(bigstar_center - camera_position);
-            vec3 currentRayDir = normalize(hitPos - camera_position); // approximate
-            float ang = max(0.0, dot(dirToStarFromCamera, currentRayDir)); // 1 at center
-            float halo = pow(ang, 16.0); // tight halo; tweak exponent
-            vec3 haloColor = bigstar_emission * (bigstar_halo * halo);
-
-            color_out = surfColor + haloColor;
-            // early out: we hit the star surface -> done
-            hitStar = true;
-            hitDisk = false;
-            hitBlackHole = false;
-            break;
+        Ray prev_ray = ray;
+        
+        if (ray.r < schwarzschild_radius * 2.0) {
+          rk2Step(ray, adaptive_step);
+        } else {
+          rk4Step(ray, adaptive_step);
         }
-        // Check disk intersection
+        
+        vec3 curr_world_pos = vec3(ray.x, ray.y, ray.z);
+        vec3 mid_pos = mix(prev_world_pos, curr_world_pos, 0.5);
+        
+        // Accretion disk
         vec3 diskIntersection;
-        if (!hitDisk && checkDiskIntersection(prevPos, newPos, diskIntersection)) {
-            hitDisk = true;
-            color_out = getDiskColor(diskIntersection);
+        if (show_disc) {
+          vec3 disc_step_color = renderDiscVolume(prev_ray, ray, adaptive_step);
+          total_disc_color += disc_step_color;
+        }
+        
+        // nebula
+        // if (show_nebula) {
+        
+        // }
+
+        prev_world_pos = curr_world_pos;
+        
+        if (ray.r > escape_radius) { break; }
+        // Early exit
+        if (transmission < 0.01) {
             break;
         }
-
-        prevPos = newPos;
-        if (ray.r > escape_radius) { escaped = true; break; }
     }
-
-    // Derive final (bent) sky direction from ray's final position
-    vec3 finalDir = normalize(vec3(ray.x, ray.y, ray.z) - black_hole_position);
-
-    // Apply colors in priority order
-    if (hitDisk || hitStar) {
-        // Disk is opaque
-    } else if (hitBlackHole) {
-        color_out = black_hole_color;
-    // } else if (hitGrid && maxGridStrength > 0.0) {
+    
+    vec3 color_out;
+    
+    if (hitPixHole) {
+      color_out = black_hole_color;
     } else {
-        // background + stars + grid
-
-        // Grid intersection using straight (non-bent) ray
-        if (straightHitGrid) {
-                // We already applied edge fade inside the check function (via getGridEdgeFade(hitPos.xz))i
-                float finalGridStrength = straightGridStrength;
-                // Mix background and grid using the final strength
-                color_out = mix(background_color, grid_color, finalGridStrength);
-            } else {
-                color_out = background_color;
-            }
-
-        // color_out = background_color;
-
-        // Stars (procedural)
-        vec3 starDir = getStableStarDir(ray_dir);
-        vec2 hashCoord = vec2(starDir.x, starDir.y);
-        float h = hash21(hashCoord);
-        float starVal = getStarBrightness(ray_dir) * star_brightness;
-        if (starVal > 1.-star_density) {
-            // additive contribution so very bright stars "bleed" a bit
-            // color_out = mix(color_out, star_color, starVal);
-            color_out += star_color * starVal;
-        }
-
-        // small tonemapping / clamp
-        // color_out = clamp(color_out, vec3(0.0), vec3(1.0));
+      // Add skybox image here
+      // // Stars (procedural)
+      vec3 starDir = getStableStarDir(ray_dir);
+      vec2 hashCoord = vec2(starDir.x, starDir.y);
+      float h = hash21(hashCoord);
+      float starVal = getStarBrightness(ray_dir) * star_brightness;
+      if (starVal > 1.-star_density) {
+          // additive contribution so very bright stars "bleed" a bit
+          // color_out = mix(color_out, star_color, starVal);
+          color_out += star_color * starVal;
+      }
+      // Grid
+      if (straightHitGrid) {
+      color_out = mix(color_out, grid_color, straightGridStrength);
+      }
+      // Blend nebula here
     }
-
+    // Blend disc volume
+    color_out = total_disc_color + color_out;
+    
+    color_out = clamp(color_out, 0.0, 4.0);
 
     COLOR = vec4(color_out, alpha);
 }

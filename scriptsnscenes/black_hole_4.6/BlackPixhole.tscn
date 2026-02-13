@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://ba30sn81clf0x"]
 
 [ext_resource type="Script" uid="uid://cjkp2nirxw5cg" path="res://scriptsnscenes/black_hole_4.6/black_pixhole.gd" id="1_4btiy"]
-[ext_resource type="Shader" uid="uid://cr30556n08cpu" path="res://scriptsnscenes/black_hole_4.6/black_hole_enhanced.gdshader" id="2_4btiy"]
+[ext_resource type="Shader" uid="uid://b2ad7fbhfydmy" path="res://scriptsnscenes/black_hole_4.6/black_pixhole.gdshader" id="2_4btiy"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_upv52"]
 shader = ExtResource("2_4btiy")
@@ -9,14 +9,14 @@ shader_parameter/black_hole_position = Vector3(0, 0, 0)
 shader_parameter/schwarzschild_radius = 1.0
 shader_parameter/black_hole_color = Color(0, 0, 0, 1)
 shader_parameter/background_color = Color(0.05, 0.05, 0.08, 1)
-shader_parameter/max_steps = 3000
+shader_parameter/max_steps = 1000
 shader_parameter/step_size = 1.0
-shader_parameter/escape_radius = 1.0
-shader_parameter/camera_position = Vector3(0, 0, 100)
+shader_parameter/escape_radius = 10000.0
+shader_parameter/camera_position = Vector3(50, 10, 10)
 shader_parameter/camera_target = Vector3(0, 0, 0)
 shader_parameter/camera_fov = 60.1
-shader_parameter/viewport_size = Vector2(400, 200)
-shader_parameter/enable_disc = true
+shader_parameter/viewport_size = Vector2(432, 243)
+shader_parameter/show_disc = true
 shader_parameter/disc_inner_radius = 2.2
 shader_parameter/disc_outer_radius = 5.2
 shader_parameter/disc_inner_color = Color(1, 0.95, 0, 1)
@@ -40,6 +40,7 @@ shader_parameter/bigstar_radius = 20.0
 shader_parameter/bigstar_emission = Color(1, 0.9, 0.7, 1)
 shader_parameter/bigstar_surface_brightness = 6.0
 shader_parameter/bigstar_halo = 0.6
+shader_parameter/time = 1.0
 
 [node name="BlackPixhole" type="Control" unique_id=818280725]
 layout_mode = 3
@@ -50,9 +51,21 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_4btiy")
 
-[node name="ColorRect" type="ColorRect" parent="." unique_id=250246175]
-material = SubResource("ShaderMaterial_upv52")
+[node name="SubViewportContainer" type="SubViewportContainer" parent="." unique_id=1362124219]
 layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+stretch_shrink = 4
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer" unique_id=1014125340]
+size = Vector2i(432, 243)
+
+[node name="ColorRect" type="ColorRect" parent="SubViewportContainer/SubViewport" unique_id=250246175]
+material = SubResource("ShaderMaterial_upv52")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
