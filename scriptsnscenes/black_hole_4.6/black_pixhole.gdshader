@@ -265,11 +265,11 @@ float accretion_density(float l, float phi, float y, float R, float R0) {
     float noise_base_v = log(max(l, 1.0)) * 1.5;
 
     float angle_time_coord = phi_norm + time * 0.1;
-    //float radial_offset = texture(noise_sampler, vec2(angle_time_coord, 0.5)).r * 0.2;
-//
-    //float noise_v_coord = noise_base_v + radial_offset;
-//
-    //float n = texture(noise_sampler, vec2(angle_time_coord, noise_v_coord * 0.25)).r;
+    float radial_offset = texture(noise_sampler, vec2(angle_time_coord, 0.5)).r * 0.2;
+
+    float noise_v_coord = noise_base_v + radial_offset;
+
+    float n = texture(noise_sampler, vec2(angle_time_coord, noise_v_coord * 0.25)).r;
 	float n = 1.0;
 
     float fade = (R - R0) * 0.5;

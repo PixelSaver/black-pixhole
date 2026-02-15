@@ -10,9 +10,9 @@ shader_parameter/schwarzschild_radius = 1.0
 shader_parameter/black_hole_color = Color(0, 0, 0, 1)
 shader_parameter/background_color = Color(0.05, 0.05, 0.08, 1)
 shader_parameter/max_steps = 1000
-shader_parameter/step_size = 1.0
+shader_parameter/step_size = 0.1
 shader_parameter/escape_radius = 10000.0
-shader_parameter/camera_position = Vector3(50, 10, 10)
+shader_parameter/camera_position = Vector3(5, 2, 5)
 shader_parameter/camera_target = Vector3(0, 0, 0)
 shader_parameter/camera_fov = 60.1
 shader_parameter/viewport_size = Vector2(432, 243)
@@ -60,6 +60,7 @@ grow_horizontal = 2
 grow_vertical = 2
 stretch = true
 stretch_shrink = 4
+mouse_target = true
 
 [node name="SubViewport" type="SubViewport" parent="SubViewportContainer" unique_id=1014125340]
 size = Vector2i(432, 243)
