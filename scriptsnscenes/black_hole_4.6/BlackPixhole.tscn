@@ -3,26 +3,33 @@
 [ext_resource type="Script" uid="uid://cjkp2nirxw5cg" path="res://scriptsnscenes/black_hole_4.6/black_pixhole.gd" id="1_4btiy"]
 [ext_resource type="Shader" uid="uid://b2ad7fbhfydmy" path="res://scriptsnscenes/black_hole_4.6/black_pixhole.gdshader" id="2_4btiy"]
 
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_4btiy"]
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_026e1"]
+noise = SubResource("FastNoiseLite_4btiy")
+seamless = true
+
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_upv52"]
 shader = ExtResource("2_4btiy")
 shader_parameter/black_hole_position = Vector3(0, 0, 0)
 shader_parameter/schwarzschild_radius = 1.0
 shader_parameter/black_hole_color = Color(0, 0, 0, 1)
 shader_parameter/background_color = Color(0.05, 0.05, 0.08, 1)
-shader_parameter/max_steps = 3000
+shader_parameter/max_steps = 1000
 shader_parameter/step_size = 1.0
 shader_parameter/escape_radius = 10000.0
-shader_parameter/camera_position = Vector3(1.495, 5.15, 100.07)
+shader_parameter/camera_position = Vector3(5, 1, 5)
 shader_parameter/camera_target = Vector3(0, 0, 0)
 shader_parameter/camera_fov = 60.1
 shader_parameter/viewport_size = Vector2(432, 243)
+shader_parameter/disc_noise = SubResource("NoiseTexture2D_026e1")
 shader_parameter/show_disc = true
 shader_parameter/disc_inner_radius = 2.2
 shader_parameter/disc_outer_radius = 5.2
 shader_parameter/disc_inner_color = Color(1, 0.95, 0, 1)
 shader_parameter/disc_outer_color = Color(1, 0.3, 0, 1)
-shader_parameter/disc_thickness = 1.0
-shader_parameter/disc_emission_strength = 1.5
+shader_parameter/disc_thickness = 0.615
+shader_parameter/disc_emission_strength = 1.0
 shader_parameter/star_color = Color(1, 1, 1, 1)
 shader_parameter/star_brightness = 1.0
 shader_parameter/star_density = 0.005
@@ -30,10 +37,10 @@ shader_parameter/star_size_scale = 0.012
 shader_parameter/show_grid = true
 shader_parameter/grid_color = Color(0.5, 0.7, 1, 1)
 shader_parameter/grid_spacing = 10.0
-shader_parameter/grid_line_thickness = 0.8
+shader_parameter/grid_line_thickness = 0.735
 shader_parameter/grid_alpha = 1.0
 shader_parameter/grid_range = 60.0
-shader_parameter/grid_warp_offset = 50.0
+shader_parameter/grid_warp_offset = 12.965
 shader_parameter/enable_bigstar = true
 shader_parameter/bigstar_center = Vector3(0, 50, -200)
 shader_parameter/bigstar_radius = 20.0

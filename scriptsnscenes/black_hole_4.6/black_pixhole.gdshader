@@ -368,13 +368,22 @@ float calculateWarpedGridY(float worldX, float worldZ) {
     float dz = worldZ - black_hole_position.z;
     float dist = sqrt(dx * dx + dz * dz);
     
-    if (dist > schwarzschild_radius) {
-        return 2.0 * sqrt(schwarzschild_radius * 
-               (dist - schwarzschild_radius)) - grid_warp_offset;
+    float R_MIN_REJECT = schwarzschild_radius * 0.1;
+    float R_FLAT = schwarzschild_radius * 1.5;
+    
+    if (dist >= R_FLAT) {
+        float magnitude = 2.0 * sqrt(schwarzschild_radius * (dist - schwarzschild_radius));
+        return magnitude - grid_warp_offset;
     }
-    return 2.0 * schwarzschild_radius - grid_warp_offset;
+    
+    if (dist > R_MIN_REJECT) {
+        float flat_y = 0.0 - grid_warp_offset;
+        float blend_factor = smoothstep(R_MIN_REJECT, R_FLAT, dist);
+        float warpedY_at_RFLAT = 2.0 * sqrt(schwarzschild_radius * (R_FLAT - schwarzschild_radius)) - grid_warp_offset;
+        return mix(flat_y, warpedY_at_RFLAT, blend_factor);
+    }
 
-    return y;
+    return -schwarzschild_radius * 1000.0 - grid_warp_offset;
 }
 
 // Returns fade factor (1.0 = fully visible, 0.0 = invisible) near grid_range
@@ -499,19 +508,20 @@ bool checkGridIntersectionStraightRay(vec3 origin, vec3 dir, out float gridStren
     const float SINGULARITY_RADIUS = 0.001;
 
     for (int i = 1; i <= MAX_STEPS; ++i) {
-        // float tf = float(i) / float(samples);
-        // float t = mix(tNear, tFar, tf);
         vec3 p = origin + dir * t;
         
         if (t > tFar) return false;
         
         float distXZ = length(p.xz);
         
-        if (distXZ > grid_range*1.05 && distXZ < schwarzschild_radius * 1.001 && dot(p.xz, dir.xz) > 0.0) continue;
-
-        float yNow = p.y - calculateWarpedGridY(p.x, p.z);
-        float dist = p.y - yNow;
-
+        if (distXZ > grid_range*1.05 && distXZ < schwarzschild_radius * 1.001 && dot(p.xz, dir.xz) > 0.0) {
+          t += HIT_EPSILON * 2.0;
+          continue;
+        }
+        
+        float warpedY = calculateWarpedGridY(p.x, p.z);
+        float dist = p.y - warpedY;
+        
         // Detect a sign change (surface crossing)
         if (abs(dist) < HIT_EPSILON) {
           // if grid line is close to center, ignore
@@ -654,11 +664,11 @@ void fragment() {
     if (hitPixHole) {
       color_out = black_hole_color;
     } else {
+      color_out = background_color;
       // Add skybox image here
       // // Stars (procedural)
       vec3 starDir = getStableStarDir(ray_dir);
       vec2 hashCoord = vec2(starDir.x, starDir.y);
-      float h = hash21(hashCoord);
       float starVal = getStarBrightness(ray_dir) * star_brightness;
       if (starVal > 1.-star_density) {
           // additive contribution so very bright stars "bleed" a bit
