@@ -18,6 +18,7 @@ uniform float camera_fov = 60.1;
 uniform vec2 viewport_size = vec2(800.0, 600.0);
 
 // Accretion Disc 
+uniform sampler2D disc_noise;
 uniform bool show_disc = true;
 uniform float disc_inner_radius = 2.2;
 uniform float disc_outer_radius = 5.2;
@@ -265,12 +266,11 @@ float accretion_density(float l, float phi, float y, float R, float R0) {
     float noise_base_v = log(max(l, 1.0)) * 1.5;
 
     float angle_time_coord = phi_norm + time * 0.1;
-    float radial_offset = texture(noise_sampler, vec2(angle_time_coord, 0.5)).r * 0.2;
+    float radial_offset = texture(disc_noise, vec2(angle_time_coord, 0.5)).r * 0.2;
 
     float noise_v_coord = noise_base_v + radial_offset;
 
-    float n = texture(noise_sampler, vec2(angle_time_coord, noise_v_coord * 0.25)).r;
-	float n = 1.0;
+    float n = texture(disc_noise, vec2(angle_time_coord, noise_v_coord * 0.25)).r;
 
     float fade = (R - R0) * 0.5;
     float d0 = pow(max(1.0 - l / R, 0.0) * clamp((l - R0) / fade + 1.0, 0.0, 1.0), 1.5);

@@ -9,10 +9,10 @@ shader_parameter/black_hole_position = Vector3(0, 0, 0)
 shader_parameter/schwarzschild_radius = 1.0
 shader_parameter/black_hole_color = Color(0, 0, 0, 1)
 shader_parameter/background_color = Color(0.05, 0.05, 0.08, 1)
-shader_parameter/max_steps = 1000
-shader_parameter/step_size = 0.1
+shader_parameter/max_steps = 3000
+shader_parameter/step_size = 1.0
 shader_parameter/escape_radius = 10000.0
-shader_parameter/camera_position = Vector3(5, 2, 5)
+shader_parameter/camera_position = Vector3(1.495, 5.15, 100.07)
 shader_parameter/camera_target = Vector3(0, 0, 0)
 shader_parameter/camera_fov = 60.1
 shader_parameter/viewport_size = Vector2(432, 243)
@@ -63,7 +63,9 @@ stretch_shrink = 4
 mouse_target = true
 
 [node name="SubViewport" type="SubViewport" parent="SubViewportContainer" unique_id=1014125340]
+handle_input_locally = false
 size = Vector2i(432, 243)
+render_target_update_mode = 4
 
 [node name="ColorRect" type="ColorRect" parent="SubViewportContainer/SubViewport" unique_id=250246175]
 material = SubResource("ShaderMaterial_upv52")
