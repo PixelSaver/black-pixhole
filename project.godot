@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Black Pixhole"
-run/main_scene="uid://bpvj6ymiikf16"
+run/main_scene="uid://ba30sn81clf0x"
 config/features=PackedStringArray("4.6", "Forward Plus")
 boot_splash/show_image=false
 config/icon="res://icon.svg"
@@ -29,7 +29,6 @@ Global="*res://scriptsnscenes/global.gd"
 window/size/viewport_width=1728
 window/size/viewport_height=972
 window/stretch/mode="canvas_items"
-window/stretch/scale=1.5
 
 [editor_plugins]
 
@@ -55,5 +54,7 @@ restart={
 
 [rendering]
 
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 driver/driver_name="vulkan"
