@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cjkp2nirxw5cg" path="res://scriptsnscenes/black_hole_4.6/black_pixhole.gd" id="1_4btiy"]
 [ext_resource type="Shader" uid="uid://b2ad7fbhfydmy" path="res://scriptsnscenes/black_hole_4.6/black_pixhole.gdshader" id="2_4btiy"]
+[ext_resource type="Script" uid="uid://bojlm5ygdgdbr" path="res://scriptsnscenes/black_hole_4.6/shader_cont.gd" id="3_026e1"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_4btiy"]
 
@@ -56,10 +57,11 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 script = ExtResource("1_4btiy")
 vpcont = NodePath("SubViewportContainer")
 vp = NodePath("SubViewportContainer/SubViewport")
-rect = NodePath("SubViewportContainer/SubViewport/ColorRect")
+rect = NodePath("SubViewportContainer/SubViewport/ShaderCont")
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="." unique_id=1362124219]
 layout_mode = 1
@@ -68,6 +70,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 0
 stretch = true
 stretch_shrink = 4
 mouse_target = true
@@ -77,10 +80,11 @@ handle_input_locally = false
 size = Vector2i(432, 243)
 render_target_update_mode = 4
 
-[node name="ColorRect" type="ColorRect" parent="SubViewportContainer/SubViewport" unique_id=250246175]
+[node name="ShaderCont" type="ColorRect" parent="SubViewportContainer/SubViewport" unique_id=250246175]
 material = SubResource("ShaderMaterial_upv52")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("3_026e1")

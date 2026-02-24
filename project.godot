@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Black Pixhole"
-run/main_scene="uid://ba30sn81clf0x"
+run/main_scene="uid://bpvj6ymiikf16"
 config/features=PackedStringArray("4.6", "Forward Plus")
 boot_splash/show_image=false
 config/icon="res://icon.svg"

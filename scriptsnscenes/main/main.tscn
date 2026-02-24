@@ -1,52 +1,18 @@
-[gd_scene load_steps=6 format=3 uid="uid://bpvj6ymiikf16"]
+[gd_scene format=3 uid="uid://bpvj6ymiikf16"]
 
 [ext_resource type="Script" uid="uid://c7snsrnf1kwvy" path="res://scriptsnscenes/main/main.gd" id="1_j6fwf"]
 [ext_resource type="Theme" uid="uid://6oyaqbjwdos" path="res://assets/theme.tres" id="2_kxkkf"]
+[ext_resource type="PackedScene" uid="uid://ba30sn81clf0x" path="res://scriptsnscenes/black_hole_4.6/BlackPixhole.tscn" id="2_uu8of"]
 [ext_resource type="Script" uid="uid://7au6fmb2j36d" path="res://scriptsnscenes/main/ui.gd" id="4_uh2b8"]
-[ext_resource type="PackedScene" uid="uid://bajm6dqruukuw" path="res://scriptsnscenes/black_hole_combined/bh_compute.tscn" id="5_pme2s"]
 [ext_resource type="PackedScene" uid="uid://b4cmo5a1pjixl" path="res://scriptsnscenes/runtime/runtime_inspector.tscn" id="5_uu8of"]
 
-[node name="Main" type="CanvasLayer" node_paths=PackedStringArray("bh_node")]
+[node name="Main" type="CanvasLayer" unique_id=1940202434 node_paths=PackedStringArray("bh_node")]
 script = ExtResource("1_j6fwf")
-bh_node = NodePath("BHCompute/ColorRect/ShaderSetup")
+bh_node = NodePath("BlackPixhole/SubViewportContainer/SubViewport/ShaderCont")
 
-[node name="BHCompute" parent="." instance=ExtResource("5_pme2s")]
+[node name="BlackPixhole" parent="." unique_id=818280725 instance=ExtResource("2_uu8of")]
 
-[node name="ColorRect" parent="BHCompute" index="0" node_paths=PackedStringArray("fps_label", "pause_panel")]
-mouse_filter = 0
-min_distance = null
-max_distance = null
-fps_label = NodePath("../../UI/FPSLabel")
-pause_panel = NodePath("Pause")
-
-[node name="Label" parent="BHCompute/ColorRect" index="1"]
-visible = false
-
-[node name="Pause" type="Panel" parent="BHCompute/ColorRect" index="2"]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="RichTextLabel" type="RichTextLabel" parent="BHCompute/ColorRect/Pause"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-bbcode_enabled = true
-text = "[pulse][font_size=50][color=yellow]PAUSED[/color][/font_size]
-Space to unpause[/pulse]"
-fit_content = true
-scroll_active = false
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="UI" type="Control" parent="." node_paths=PackedStringArray("fps_label", "controls_toggle")]
+[node name="UI" type="Control" parent="." unique_id=739842815 node_paths=PackedStringArray("fps_label", "controls_toggle")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -59,7 +25,7 @@ script = ExtResource("4_uh2b8")
 fps_label = NodePath("FPSLabel")
 controls_toggle = NodePath("ControlsToggle")
 
-[node name="FPSLabel" type="RichTextLabel" parent="UI"]
+[node name="FPSLabel" type="RichTextLabel" parent="UI" unique_id=191702856]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -70,7 +36,7 @@ mouse_filter = 2
 bbcode_enabled = true
 fit_content = true
 
-[node name="RuntimeInspector" parent="UI" instance=ExtResource("5_uu8of")]
+[node name="RuntimeInspector" parent="UI" unique_id=1990966064 instance=ExtResource("5_uu8of")]
 layout_mode = 1
 anchor_left = 0.7
 grow_horizontal = 1
@@ -84,7 +50,7 @@ vector_axis_spin_min_x = 0
 color_picker_width = 0
 color_picker_height = 0
 
-[node name="ControlsToggle" type="Button" parent="UI"]
+[node name="ControlsToggle" type="Button" parent="UI" unique_id=278947198]
 layout_mode = 1
 anchors_preset = -1
 anchor_left = 0.02
@@ -93,9 +59,10 @@ anchor_right = 0.16
 anchor_bottom = 0.96
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 toggle_mode = true
 
-[node name="RichTextLabel" type="RichTextLabel" parent="UI/ControlsToggle"]
+[node name="RichTextLabel" type="RichTextLabel" parent="UI/ControlsToggle" unique_id=254408812]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -108,4 +75,4 @@ text = "[font_size=17]Toggle Controls (C)"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[editable path="BHCompute"]
+[editable path="BlackPixhole"]
